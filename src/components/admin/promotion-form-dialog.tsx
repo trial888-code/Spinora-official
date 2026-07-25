@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Image as ImageIcon, Loader2, Pencil, Plus, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -30,13 +30,37 @@ import type { Promotion } from "@/lib/database.types";
 
 type Props = { promotion?: Promotion };
 
-const STATUSES = ["draft", "scheduled", "active", "expired", "archived"] as const;
+const STATUSES = ["active", "draft", "scheduled", "expired", "archived"] as const;
+
+const PRESET_BANNERS = [
+  { label: "🎁 Welcome Bonus", url: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80" },
+  { label: "💎 VIP High Roller", url: "https://images.unsplash.com/photo-1511193311914-0346f16efe90?auto=format&fit=crop&w=800&q=80" },
+  { label: "⚡ Double Deposit", url: "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=800&q=80" },
+];
 
 export function PromotionFormDialog({ promotion }: Props) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
   const editing = Boolean(promotion);
+
+  const [title, setTitle] = React.useState(promotion?.title ?? "");
+  const [slug, setSlug] = React.useState(promotion?.slug ?? "");
+  const [imageUrl, setImageUrl] = React.useState(
+    (promotion as { image_url?: string | null })?.image_url ?? ""
+  );
+
+  function handleTitleChange(val: string) {
+    setTitle(val);
+    if (!editing) {
+      const auto = val
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/[\s_-]+/g, "-");
+      setSlug(auto);
+    }
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -45,15 +69,16 @@ export function PromotionFormDialog({ promotion }: Props) {
     startTransition(async () => {
       const result = await upsertPromotionAction({
         id: promotion?.id,
-        slug: String(fd.get("slug") ?? ""),
-        title: String(fd.get("title") ?? ""),
+        slug: slug || String(fd.get("slug") ?? ""),
+        title: title || String(fd.get("title") ?? ""),
         summary: String(fd.get("summary") ?? ""),
         description: String(fd.get("description") ?? ""),
-        badge_text: String(fd.get("badge_text") ?? "") || null,
-        coins_bonus: Number(fd.get("coins_bonus") ?? 0),
-        xp_bonus: Number(fd.get("xp_bonus") ?? 0),
+        badge_text: String(fd.get("badge_text") ?? "HOT BONUS"),
+        image_url: imageUrl || String(fd.get("image_url") ?? "") || null,
+        coins_bonus: Number(fd.get("coins_bonus") ?? 5),
+        xp_bonus: Number(fd.get("xp_bonus") ?? 10),
         code: String(fd.get("code") ?? "") || null,
-        status: fd.get("status") as (typeof STATUSES)[number],
+        status: (fd.get("status") as (typeof STATUSES)[number]) || "active",
         is_featured: fd.get("is_featured") === "on",
         priority: Number(fd.get("priority") ?? 100),
         starts_at: String(fd.get("starts_at") ?? "") || null,
@@ -66,7 +91,7 @@ export function PromotionFormDialog({ promotion }: Props) {
         toast.error(result.error);
         return;
       }
-      toast.success(result.message ?? "Saved");
+      toast.success(result.message ?? "Saved successfully!");
       setOpen(false);
       router.refresh();
     });
@@ -80,116 +105,163 @@ export function PromotionFormDialog({ promotion }: Props) {
             <Pencil className="size-4" aria-hidden />
           </Button>
         ) : (
-          <Button>
-            <Plus className="size-4" aria-hidden />
-            New Promotion
+          <Button className="bg-gradient-to-r from-amber-500 to-amber-600 font-bold hover:brightness-110">
+            <Plus className="size-4 mr-1" aria-hidden />
+            Create New Promotion
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="glass-strong max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="glass-strong max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit promotion" : "Create promotion"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+            <Sparkles className="size-5 text-amber-400" />
+            {editing ? "Edit Promotion" : "Easy Create Promotion"}
+          </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 space-y-2">
-              <Label htmlFor="p-title">Title</Label>
-              <Input id="p-title" name="title" defaultValue={promotion?.title} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="p-slug">Slug</Label>
-              <Input
-                id="p-slug"
-                name="slug"
-                defaultValue={promotion?.slug}
-                placeholder="welcome-boost"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="p-badge">Badge text</Label>
-              <Input
-                id="p-badge"
-                name="badge_text"
-                defaultValue={promotion?.badge_text ?? ""}
-                placeholder="LIMITED"
-              />
-            </div>
-          </div>
-
+        <form onSubmit={onSubmit} className="space-y-4 pt-2">
+          {/* Main Title & Auto Slug */}
           <div className="space-y-2">
-            <Label htmlFor="p-summary">Summary</Label>
-            <Input id="p-summary" name="summary" defaultValue={promotion?.summary} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="p-desc">Description</Label>
-            <Textarea
-              id="p-desc"
-              name="description"
-              rows={3}
-              defaultValue={promotion?.description}
+            <Label htmlFor="p-title" className="font-bold text-sm">
+              Promotion Title <span className="text-rose-400">*</span>
+            </Label>
+            <Input
+              id="p-title"
+              name="title"
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder="e.g. Freeplay $20 Deposit Match"
+              required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="p-coins">Coins bonus</Label>
+              <Label htmlFor="p-slug" className="text-xs text-muted-foreground">
+                URL Slug (Auto-generated)
+              </Label>
+              <Input
+                id="p-slug"
+                name="slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                placeholder="freeplay-deposit-match"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="p-badge" className="text-xs text-muted-foreground">
+                Badge Tag
+              </Label>
+              <Input
+                id="p-badge"
+                name="badge_text"
+                defaultValue={promotion?.badge_text ?? "HOT BONUS"}
+                placeholder="FREEPLAY / LIMITED"
+              />
+            </div>
+          </div>
+
+          {/* Image Banner Holder Field */}
+          <div className="space-y-2 border border-amber-500/30 bg-amber-500/10 p-3.5 rounded-xl">
+            <Label htmlFor="p-image" className="font-bold text-xs flex items-center gap-1.5 text-amber-300">
+              <ImageIcon className="size-4" />
+              Promotion Poster Image (Banner URL)
+            </Label>
+            <Input
+              id="p-image"
+              name="image_url"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://example.com/promo-banner.jpg"
+            />
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-[11px] text-muted-foreground">Quick Presets:</span>
+              {PRESET_BANNERS.map((b) => (
+                <button
+                  key={b.label}
+                  type="button"
+                  onClick={() => setImageUrl(b.url)}
+                  className="text-[11px] bg-background/60 hover:bg-amber-500/20 text-foreground px-2 py-0.5 rounded border border-border/60 transition-all"
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+
+            {imageUrl && (
+              <div className="mt-2 relative h-28 rounded-lg overflow-hidden border border-border/50 bg-black/40">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imageUrl}
+                  alt="Promotion Preview"
+                  className="w-full h-full object-cover"
+                  onError={() => setImageUrl("")}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="p-summary" className="text-xs font-semibold">
+              Short Description / Offer
+            </Label>
+            <Textarea
+              id="p-summary"
+              name="summary"
+              rows={2}
+              defaultValue={promotion?.summary ?? "Claim freeplay coins instantly when depositing today!"}
+              placeholder="Instant bonus credited upon deposit"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="p-coins" className="text-xs font-semibold">
+                Bonus Coins Reward
+              </Label>
               <Input
                 id="p-coins"
                 name="coins_bonus"
                 type="number"
                 min={0}
-                defaultValue={promotion?.coins_bonus ?? 0}
+                defaultValue={promotion?.coins_bonus ?? 20}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="p-xp">XP bonus</Label>
-              <Input
-                id="p-xp"
-                name="xp_bonus"
-                type="number"
-                min={0}
-                defaultValue={promotion?.xp_bonus ?? 0}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="p-code">Redeem code</Label>
+              <Label htmlFor="p-code" className="text-xs font-semibold">
+                Promo Code (Optional)
+              </Label>
               <Input
                 id="p-code"
                 name="code"
                 defaultValue={promotion?.code ?? ""}
-                placeholder="Optional"
+                placeholder="e.g. FREE20"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="p-status">Status</Label>
-              <Select name="status" defaultValue={promotion?.status ?? "draft"}>
+              <Label htmlFor="p-status" className="text-xs font-semibold">
+                Status
+              </Label>
+              <Select name="status" defaultValue={promotion?.status ?? "active"}>
                 <SelectTrigger id="p-status" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUSES.map((s) => (
                     <SelectItem key={s} value={s} className="capitalize">
-                      {s}
+                      {s.toUpperCase()}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="p-priority">Priority</Label>
-              <Input
-                id="p-priority"
-                name="priority"
-                type="number"
-                min={0}
-                defaultValue={promotion?.priority ?? 100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="p-per-user">Max claims / user</Label>
+              <Label htmlFor="p-per-user" className="text-xs font-semibold">
+                Max Claims / User
+              </Label>
               <Input
                 id="p-per-user"
                 name="max_claims_per_user"
@@ -198,50 +270,33 @@ export function PromotionFormDialog({ promotion }: Props) {
                 defaultValue={promotion?.max_claims_per_user ?? 1}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="p-starts">Starts at</Label>
-              <Input
-                id="p-starts"
-                name="starts_at"
-                type="datetime-local"
-                defaultValue={toLocalInput(promotion?.starts_at)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="p-ends">Ends at</Label>
-              <Input
-                id="p-ends"
-                name="ends_at"
-                type="datetime-local"
-                defaultValue={toLocalInput(promotion?.ends_at)}
-              />
-            </div>
           </div>
 
-          <label className="flex items-center gap-3">
+          <label className="flex items-center gap-3 pt-2">
             <Checkbox
               name="is_featured"
-              defaultChecked={promotion?.is_featured ?? false}
+              defaultChecked={promotion?.is_featured ?? true}
             />
-            <span className="text-sm">Feature on promotions page</span>
+            <span className="text-sm font-semibold">Feature live on site promotions page</span>
           </label>
 
-          <DialogFooter>
-            <Button type="submit" disabled={pending}>
-              {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-              {editing ? "Save changes" : "Create promotion"}
+          <DialogFooter className="pt-2">
+            <Button
+              type="submit"
+              disabled={pending}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5"
+            >
+              {pending ? (
+                <Loader2 className="size-4 animate-spin mr-2" aria-hidden />
+              ) : editing ? (
+                "Save Changes"
+              ) : (
+                "✨ Create Live Promotion Now"
+              )}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
-}
-
-function toLocalInput(iso?: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

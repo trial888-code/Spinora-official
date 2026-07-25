@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getDepositMethod, type DepositPaymentMethodId } from "@/lib/payments/methods";
 import { notifyAdminOfDeposit } from "@/lib/telegram/notify-admin-deposit";
 import { createNotification } from "@/lib/actions/notifications";
@@ -48,7 +49,9 @@ export async function submitDepositRequest(input: {
       ? Math.round(input.amount * 100) / 100
       : null;
 
-  const { data: row, error } = await supabase
+  const db = createAdminClient() ?? supabase;
+
+  const { data: row, error } = await db
     .from("deposit_requests")
     .insert({
       user_id: user.id,
@@ -63,9 +66,7 @@ export async function submitDepositRequest(input: {
     .single();
 
   if (error) {
-    if (error.message.includes("deposit_requests")) {
-      return { error: "Deposits not set up. Run supabase/deposit-requests.sql in Supabase." };
-    }
+    console.error("[submitDepositRequest] Insert error:", error);
     return { error: error.message };
   }
 
@@ -90,14 +91,15 @@ export async function getAdminDepositRequests(): Promise<DepositRequestRow[]> {
   } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const { data: profile } = await supabase
+  const db = createAdminClient() ?? supabase;
+  const { data: profile } = await db
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
   if (profile?.role !== "admin") return [];
 
-  const { data } = await supabase
+  const { data } = await db
     .from("deposit_requests")
     .select("*, user:profiles!deposit_requests_user_id_fkey(full_name, email)")
     .order("created_at", { ascending: false });
@@ -117,14 +119,15 @@ export async function updateDepositStatus(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { data: profile } = await supabase
+  const db = createAdminClient() ?? supabase;
+  const { data: profile } = await db
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
   if (profile?.role !== "admin") return { error: "Unauthorized" };
 
-  const { data: existing, error: selectError } = await supabase
+  const { data: existing, error: selectError } = await db
     .from("deposit_requests")
     .select("user_id, game_name, payment_method, amount, status, wallet_credited")
     .eq("id", depositId)
@@ -155,19 +158,45 @@ export async function updateDepositStatus(
     const method = getDepositMethod(existing.payment_method as DepositPaymentMethodId);
     const methodLabel = method?.label ?? existing.payment_method;
 
-    const { error: rpcError } = await supabase.rpc("complete_deposit_request", {
+    const { error: rpcError } = await db.rpc("complete_deposit_request", {
       p_deposit_id: depositId,
       p_amount: amount,
       p_admin_notes: adminNotes?.trim() ?? null,
     });
 
     if (rpcError) {
-      if (rpcError.code === "42883" || rpcError.message.includes("Could not find the function")) {
-        return {
-          error: "Deposit wallet credit not set up. Run supabase/deposit-wallet-credit.sql in Supabase.",
-        };
+      console.warn("[updateDepositStatus] RPC failed, applying direct wallet credit fallback:", rpcError.message);
+
+      const { data: userProfile } = await db
+        .from("profiles")
+        .select("wallet_balance")
+        .eq("id", existing.user_id)
+        .single();
+
+      const currentBal = Number(userProfile?.wallet_balance ?? 0);
+      const newBalance = Math.round((currentBal + amount) * 100) / 100;
+
+      const { error: updateBalErr } = await db
+        .from("profiles")
+        .update({ wallet_balance: newBalance })
+        .eq("id", existing.user_id);
+
+      if (updateBalErr) {
+        return { error: `Failed to update user wallet: ${updateBalErr.message}` };
       }
-      return { error: rpcError.message };
+
+      await db
+        .from("deposit_requests")
+        .update({
+          status: "completed",
+          amount: amount,
+          wallet_credited: true,
+          admin_notes: adminNotes?.trim() ?? null,
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", depositId);
     }
 
     await createNotification(
@@ -180,7 +209,7 @@ export async function updateDepositStatus(
     const update: Record<string, string | null> = { status };
     if (adminNotes?.trim()) update.admin_notes = adminNotes.trim();
 
-    const { error } = await supabase
+    const { error } = await db
       .from("deposit_requests")
       .update({
         ...update,

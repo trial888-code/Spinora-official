@@ -3,21 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LobbyAppShell } from "@/components/home/lobby/lobby-app-shell";
-import { LobbySidebar, type LobbyMenuId } from "@/components/home/lobby/lobby-sidebar";
-import { AppShell } from "@/components/layout/app-shell";
-import { HomeSidebar } from "@/components/home/home-sidebar";
-import { DeferredWalletCardLoader } from "@/components/wallet/deferred-wallet-card-loader";
+import { AppLayout } from "@/components/layout/app-layout";
+import { CosmicUiScope } from "@/components/layout/cosmic-ui-scope";
+import { Navbar } from "@/components/layout/navbar";
 
 interface VipGamePageShellProps {
   children: React.ReactNode;
 }
 
-/** Game pages: VIP shell when logged in, classic shell when logged out. */
+/** Game pages: Cosmic AppLayout when logged in; cosmic public chrome when logged out. */
 export function VipGamePageShell({ children }: VipGamePageShellProps) {
   const router = useRouter();
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
-  const [lobbyMenu, setLobbyMenu] = useState<LobbyMenuId>("lobby");
 
   useEffect(() => {
     const supabase = createClient();
@@ -37,7 +34,7 @@ export function VipGamePageShell({ children }: VipGamePageShellProps) {
 
   if (loggedIn === null) {
     return (
-      <div className="lobby-cosmic min-h-screen flex items-center justify-center">
+      <div className="cosmic-app-shell min-h-screen flex items-center justify-center">
         <div className="w-10 h-10 rounded-full border-2 border-purple-600 border-t-amber-400 animate-spin" aria-label="Loading" />
       </div>
     );
@@ -45,123 +42,31 @@ export function VipGamePageShell({ children }: VipGamePageShellProps) {
 
   if (loggedIn) {
     return (
-      <LobbyAppShell
-        sidebar={
-          <LobbySidebar
-            activeMenu={lobbyMenu}
-            onMenuChange={(menu) => {
-              setLobbyMenu(menu);
-              if (menu === "lobby") router.push("/");
-              else router.push("/#games");
-            }}
-          />
-        }
-      >
-        <div className="vip-page-content max-w-4xl mx-auto py-2 px-1">{children}</div>
-      </LobbyAppShell>
+      <AppLayout>
+        <div className="vip-page-content">{children}</div>
+      </AppLayout>
     );
   }
 
   return (
-    <AppShell
-      onSearchClick={() => router.push("/#games")}
-      sidebar={
-        <HomeSidebar
-          activeTab="all"
-          onTabChange={() => router.push("/")}
-          onSearchClick={() => router.push("/#games")}
-        />
-      }
-    >
-      {children}
-    </AppShell>
+    <div className="min-h-screen cosmic-nebula-page text-foreground">
+      <CosmicUiScope />
+      <Navbar variant="cosmic" onSearchClick={() => router.push("/#games")} />
+      <main className="pt-16 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+        <div className="vip-page-content">{children}</div>
+      </main>
+    </div>
   );
 }
 
-/** Logged-in game shell with wallet in sidebar */
 export function VipGamePageShellAuthed({ children }: VipGamePageShellProps) {
-  const router = useRouter();
-  const [lobbyMenu, setLobbyMenu] = useState<LobbyMenuId>("lobby");
-
   return (
-    <LobbyAppShell
-      sidebar={
-        <LobbySidebar
-          activeMenu={lobbyMenu}
-          onMenuChange={(menu) => {
-            setLobbyMenu(menu);
-            if (menu === "lobby") router.push("/");
-            else router.push("/#games");
-          }}
-        />
-      }
-    >
-      <div className="vip-page-content max-w-4xl mx-auto py-2 px-1">{children}</div>
-    </LobbyAppShell>
+    <AppLayout>
+      <div className="vip-page-content">{children}</div>
+    </AppLayout>
   );
 }
 
 export function VipGamePageShellWithWallet({ children }: VipGamePageShellProps) {
-  const router = useRouter();
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
-  const [lobbyMenu, setLobbyMenu] = useState<LobbyMenuId>("lobby");
-
-  useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) {
-      setLoggedIn(false);
-      return;
-    }
-    void supabase.auth.getUser().then(({ data: { user } }) => setLoggedIn(!!user));
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") setLoggedIn(false);
-      else if (event === "SIGNED_IN") setLoggedIn(true);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (loggedIn === null) {
-    return (
-      <div className="lobby-cosmic min-h-screen flex items-center justify-center">
-        <div className="w-10 h-10 rounded-full border-2 border-purple-600 border-t-amber-400 animate-spin" aria-label="Loading" />
-      </div>
-    );
-  }
-
-  if (loggedIn) {
-    return (
-      <LobbyAppShell
-        sidebar={
-          <LobbySidebar
-            activeMenu={lobbyMenu}
-            onMenuChange={(menu) => {
-              setLobbyMenu(menu);
-              if (menu === "lobby") router.push("/");
-              else router.push("/#games");
-            }}
-          />
-        }
-      >
-        <div className="vip-page-content max-w-4xl mx-auto py-2 px-1">{children}</div>
-      </LobbyAppShell>
-    );
-  }
-
-  return (
-    <AppShell
-      onSearchClick={() => router.push("/#games")}
-      sidebar={
-        <HomeSidebar
-          activeTab="all"
-          onTabChange={() => router.push("/")}
-          onSearchClick={() => router.push("/#games")}
-          walletSlot={<DeferredWalletCardLoader />}
-        />
-      }
-    >
-      {children}
-    </AppShell>
-  );
+  return <VipGamePageShell>{children}</VipGamePageShell>;
 }

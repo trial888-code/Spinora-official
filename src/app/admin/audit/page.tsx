@@ -40,7 +40,7 @@ export default async function AdminAuditPage({
   const { data, count } = await db
     .from("audit_logs")
     .select(
-      "id, action, entity_type, entity_id, created_at, actor:profiles!audit_logs_actor_id_fkey(email, full_name)",
+      "id, action, entity_type, entity_id, created_at, actor_id",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
@@ -92,11 +92,8 @@ export default async function AdminAuditPage({
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm">
-                        @
-                        {profileDisplayName(
-                          (log.actor as { email?: string | null; full_name?: string | null } | null) ?? {}
-                        ) || "system"}
+                      <TableCell className="text-sm font-mono text-cyan-300">
+                        @{log.actor_id ? log.actor_id.slice(0, 8) : "admin"}
                       </TableCell>
                       <TableCell className="tnum text-right text-xs text-muted-foreground">
                         {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}

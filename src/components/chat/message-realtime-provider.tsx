@@ -435,7 +435,6 @@ export function MessageRealtimeProvider({ children }: { children: ReactNode }) {
       if (!cancelled) void syncConversations();
     };
 
-    // Defer first sync so the page paints before network work.
     void supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) runSync();
     });
@@ -481,8 +480,6 @@ export function MessageRealtimeProvider({ children }: { children: ReactNode }) {
   }, [syncConversations]);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
-
     function unlock() {
       void unlockMessageNotificationSound();
     }
@@ -495,7 +492,7 @@ export function MessageRealtimeProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("touchend", unlock, gestureOpts);
       document.removeEventListener("keydown", unlock);
     };
-  }, [isLoggedIn]);
+  }, []);
 
   useEffect(() => {
     if (onInboxPage) return;
@@ -676,72 +673,52 @@ export function MessageRealtimeProvider({ children }: { children: ReactNode }) {
       {isLoggedIn && <SitePresenceHeartbeat />}
       {children}
 
-      {!hideFab && isLoggedIn && (
+      {!hideFab && (
         <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] sm:bottom-6 sm:right-6 z-[130] flex flex-col items-center gap-2 pointer-events-none">
           <FloatingSocialLinks />
           <button
             type="button"
             onClick={() => {
-            void unlockMessageNotificationSound();
-            if (onAdminRoute) {
-              setQuickChatOpen(false);
-              router.push("/admin/chat");
-              return;
-            }
-            if (quickChatOpen) {
-              setQuickChatOpen(false);
-              return;
-            }
-            void (async () => {
-              try {
-                const uid = activeUserId ?? userIdRef.current;
-                if (!uid) {
-                  router.push("/dashboard/messages");
-                  return;
-                }
-
-                let convId = quickChatConvId;
-                if (!convId) {
-                  const supabase = createClient();
-                  if (supabase) {
-                    convId = await ensureUserConversationClient(supabase, uid);
-                  }
-                  if (!convId) {
-                    const ensured = await ensureUserConversation();
-                    convId = ensured.conversationId ?? null;
-                  }
-                }
-
-                if (!convId) {
-                  router.push("/dashboard/messages");
-                  return;
-                }
-
-                setQuickChatConvId(convId);
-                setQuickChatOpen(true);
-              } catch {
-                router.push("/dashboard/messages");
+              void unlockMessageNotificationSound();
+              if (onAdminRoute) {
+                setQuickChatOpen(false);
+                router.push("/admin/chat");
+                return;
               }
-            })();
-          }}
-          className="relative w-14 h-14 rounded-full gradient-bg flex items-center justify-center shadow-lg glow-purple touch-manipulation pointer-events-auto"
-          aria-label={onAdminRoute ? "Open customer chat" : "Open live chat"}
-        >
-          <MessageCircle className="h-6 w-6 text-white" />
-          {count > 0 && (
-            <span className="absolute -top-0.5 -right-0.5">
-              <UnreadBadge count={count} className="ring-2 ring-[#121212]" />
-            </span>
-          )}
-        </button>
+              if (quickChatOpen) {
+                setQuickChatOpen(false);
+                return;
+              }
+              // 🟢 ALWAYS OPEN QUICK CHAT DIRECTLY OVER CURRENT PAGE FOR ANY USER
+              setQuickChatOpen(true);
+              const uid = activeUserId ?? userIdRef.current;
+              if (uid && !quickChatConvId) {
+                const supabase = createClient();
+                if (supabase) {
+                  void ensureUserConversationClient(supabase, uid).then((convId) => {
+                    if (convId) setQuickChatConvId(convId);
+                  });
+                }
+              }
+            }}
+            className="relative w-14 h-14 rounded-full gradient-bg flex items-center justify-center shadow-lg glow-purple touch-manipulation pointer-events-auto"
+            aria-label={onAdminRoute ? "Open customer chat" : "Open live chat"}
+          >
+            <MessageCircle className="h-6 w-6 text-white" />
+            {count > 0 && (
+              <span className="absolute -top-0.5 -right-0.5">
+                <UnreadBadge count={count} className="ring-2 ring-[#121212]" />
+              </span>
+            )}
+          </button>
         </div>
       )}
 
-      {!onAdminRoute && !onInboxPage && isLoggedIn && quickChatOpen && quickChatConvId && activeUserId && (
+      {!onAdminRoute && !onInboxPage && quickChatOpen && (
         <UserQuickChat
           open={quickChatOpen}
-          conversationId={quickChatConvId}
-          userId={activeUserId}
+          conversationId={quickChatConvId ?? "pending"}
+          userId={activeUserId ?? "guest-user"}
           onClose={() => setQuickChatOpen(false)}
         />
       )}

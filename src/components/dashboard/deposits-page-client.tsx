@@ -29,10 +29,10 @@ const statusVariant: Record<RequestStatus, "default" | "warning" | "success" | "
   rejected: "destructive",
 };
 
-export function DepositsPageClient() {
+export function DepositsPageClient({ initialDeposits }: { initialDeposits?: DepositRow[] }) {
   const { supabase, userId, ready } = useDashboardSession();
-  const [deposits, setDeposits] = useState<DepositRow[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [deposits, setDeposits] = useState<DepositRow[]>(initialDeposits ?? []);
+  const [loaded, setLoaded] = useState(Boolean(initialDeposits));
 
   useEffect(() => {
     if (!ready || !supabase || !userId) return;
@@ -44,8 +44,8 @@ export function DepositsPageClient() {
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
-        if (!cancelled) {
-          setDeposits((data ?? []) as DepositRow[]);
+        if (!cancelled && data) {
+          setDeposits(data as DepositRow[]);
           setLoaded(true);
         }
       });

@@ -92,20 +92,12 @@ export const getDashboardCore = cache(async (): Promise<DashboardCore> => {
   if (!profile) redirect("/login");
 
   const tiers = tiersRes.data ?? [];
-  // tier from vip_status when present, else derive from xp
+  const xpTotal = Number(profile.vip_points ?? profile.xp ?? 0);
   let tier = null as DashboardCore["tier"];
-  if (statusRes.data?.tier_id) {
-    const full = await supabase
-      .from("vip_tiers")
-      .select("key, name, rank, min_xp, reward_multiplier, color, benefits")
-      .eq("id", statusRes.data.tier_id)
-      .single();
-    tier = full.data ?? null;
-  }
-  if (!tier && tiers.length) {
-    const xpTotal = Number(profile.xp ?? profile.vip_points ?? 0);
+
+  if (tiers.length) {
     tier =
-      [...tiers].reverse().find((t) => t.min_xp <= xpTotal) ??
+      [...tiers].reverse().find((t) => Number(t.min_xp ?? 0) <= xpTotal) ??
       tiers[0] ??
       null;
   }
@@ -140,7 +132,9 @@ export async function getRewardsOverview(
   const weekKey = utcWeekKey();
   const monthKey = utcMonthKey();
 
-  const [rulesRes, claimsRes] = await Promise.all([
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [rulesRes, claimsRes, txClaimsRes] = await Promise.all([
     supabase
       .from("reward_rules")
       .select("key, name, description, reward_type, coins, xp, config")
@@ -149,12 +143,20 @@ export async function getRewardsOverview(
       .from("reward_claims")
       .select("reward_type, period_key, claimed_at")
       .eq("user_id", user.id),
+    supabase
+      .from("wallet_transactions")
+      .select("created_at")
+      .eq("user_id", user.id)
+      .eq("source", "reward_claim")
+      .gte("created_at", oneDayAgo),
   ]);
 
   const rules = rulesRes.data ?? [];
   const claims = claimsRes.data ?? [];
+  const hasTxClaimToday = (txClaimsRes.data ?? []).length > 0;
 
   const claimedKey = (type: string, key: string) =>
+    (type === "daily" && hasTxClaimToday) ||
     claims.some((c) => c.reward_type === type && c.period_key === key);
 
   const dailyClaimsInWeek = claims.filter(
@@ -492,22 +494,74 @@ export async function getGameAccountSummary() {
 /** Real-money wallet (deposit + cash-out) + recent ledger for the signed-in user. */
 export async function getWalletData() {
   const { supabase, user } = await requireUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("wallet_balance, cashout_wallet")
-    .eq("id", user.id)
-    .single();
-  const { data: transactions } = await supabase
-    .from("wallet_transactions")
-    .select("id, amount, wallet_type, transaction_type, source, description, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const db = createAdminClient() ?? supabase;
+
+  const [{ data: profile }, { data: transactions }] = await Promise.all([
+    db
+      .from("profiles")
+      .select("wallet_balance, cashout_wallet")
+      .eq("id", user.id)
+      .single(),
+    db
+      .from("wallet_transactions")
+      .select("id, amount, wallet_type, transaction_type, source, description, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
+
   return {
     balance: Number(profile?.wallet_balance ?? 0),
     cashout: Number(profile?.cashout_wallet ?? 0),
     transactions: (transactions ?? []) as import("@/lib/wallet/transaction-display").WalletTransactionRow[],
   };
+}
+
+export async function getUserDepositsData() {
+  const { supabase, user } = await requireUser();
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const db = createAdminClient() ?? supabase;
+
+  const [{ data: deposits }, { data: txDeposits }] = await Promise.all([
+    db
+      .from("deposit_requests")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    db
+      .from("wallet_transactions")
+      .select("id, amount, transaction_type, source, description, created_at")
+      .eq("user_id", user.id)
+      .in("transaction_type", ["credit", "adjustment"])
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
+
+  const reqs = (deposits ?? []).map((d: any) => ({
+    id: String(d.id),
+    game_name: String(d.game_name || "Spinora Wallet"),
+    payment_method: String(d.payment_method || "direct"),
+    status: String(d.status || "completed"),
+    amount: d.amount ? Number(d.amount) : null,
+    proof_url: (d.proof_url as string) || null,
+    created_at: String(d.created_at),
+  }));
+
+  const txs = (txDeposits ?? []).map((t) => ({
+    id: `tx-${t.id}`,
+    game_name: "Spinora Wallet",
+    payment_method: String(t.source || "deposit"),
+    status: "completed",
+    amount: Number(t.amount ?? 0),
+    proof_url: null,
+    created_at: String(t.created_at),
+  }));
+
+  const combined = [...reqs, ...txs];
+  combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return combined;
 }
 
 /**
@@ -519,31 +573,33 @@ export async function getCreatableGames() {
   const { user } = await requireUser();
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const admin = createAdminClient();
-  if (!admin) return [];
+  const db = admin ?? (await createClient());
 
-  const { data: cfgs } = await admin
-    .from("game_server_configs")
-    .select("game_id")
-    .eq("is_enabled", true);
-  const enabledIds = (cfgs ?? []).map((c) => c.game_id);
-  if (enabledIds.length === 0) return [];
-
-  const [{ data: games }, { data: linked }] = await Promise.all([
-    admin.from("games").select("id, name, slug, image_url").in("id", enabledIds).eq("is_active", true),
-    admin.from("game_accounts").select("game_id").eq("user_id", user.id),
+  const [{ data: cfgs }, { data: linked }, { data: jobs }] = await Promise.all([
+    db.from("game_server_configs").select("game_id").eq("is_enabled", true),
+    db.from("game_accounts").select("game_id, games(slug)").eq("user_id", user.id),
+    db
+      .from("game_load_requests")
+      .select("game_slug")
+      .eq("user_id", user.id)
+      .in("status", ["pending", "processing"]),
   ]);
 
-  // Exclude games the user already has, or that have an in-flight job.
-  const { data: jobs } = await admin
-    .from("game_load_requests")
-    .select("game_slug")
-    .eq("user_id", user.id)
-    .in("status", ["pending", "processing"]);
-  const linkedIds = new Set((linked ?? []).map((l) => l.game_id));
+  const enabledIds = new Set((cfgs ?? []).map((c) => c.game_id));
+  const linkedSlugs = new Set(
+    (linked ?? []).map((l) => (l.games as unknown as { slug?: string } | null)?.slug).filter(Boolean)
+  );
   const busySlugs = new Set((jobs ?? []).map((j) => j.game_slug));
-  return (games ?? [])
-    .filter((g) => !linkedIds.has(g.id) && !busySlugs.has(g.slug))
-    .map((g) => ({ id: g.id, name: g.name, slug: g.slug, image_url: g.image_url }));
+
+  // If DB game_server_configs is unpopulated, include all live games from GAMES catalog
+  const catalogGames = GAMES.filter((g) => !g.upcoming).map((g) => ({
+    id: g.id,
+    name: g.name,
+    slug: g.slug,
+    image_url: g.image,
+  }));
+
+  return catalogGames.filter((g) => !linkedSlugs.has(g.slug) && !busySlugs.has(g.slug));
 }
 
 export type CreatableGame = { id: string; name: string; slug: string; image_url: string | null };

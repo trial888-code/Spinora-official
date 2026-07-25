@@ -945,7 +945,8 @@ export async function adminUpdateGameLoadStatus(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { data: profile } = await supabase
+  const db = createAdminClient() ?? supabase;
+  const { data: profile } = await db
     .from("profiles")
     .select("role")
     .eq("id", user.id)
@@ -953,15 +954,20 @@ export async function adminUpdateGameLoadStatus(
 
   if (profile?.role !== "admin") return { error: "Unauthorized" };
 
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("game_load_requests")
     .select("*")
     .eq("id", requestId)
     .single();
 
   if (!existing) return { error: "Request not found" };
+  if (existing.status === status) return { success: true };
 
-  const { error } = await supabase
+  const amount = Number(existing.amount ?? 0);
+  const isRedeem = existing.load_type === "redeem";
+  const isLoad = existing.load_type === "load" || existing.load_type === "reload";
+
+  const { error } = await db
     .from("game_load_requests")
     .update({
       status,
@@ -973,27 +979,92 @@ export async function adminUpdateGameLoadStatus(
 
   if (error) return { error: error.message };
 
-  if (status === "completed") {
-    const isRedeem = existing.load_type === "redeem";
+  // 1. When Redeem is marked COMPLETED -> Credit cashout_wallet balance
+  if (status === "completed" && isRedeem && amount > 0) {
+    const { data: userProfile } = await db
+      .from("profiles")
+      .select("cashout_wallet")
+      .eq("id", existing.user_id)
+      .single();
+
+    const currentCashout = Number(userProfile?.cashout_wallet ?? 0);
+    const newCashout = Math.round((currentCashout + amount) * 100) / 100;
+
+    await db
+      .from("profiles")
+      .update({ cashout_wallet: newCashout })
+      .eq("id", existing.user_id);
+
+    await db.from("wallet_transactions").insert({
+      user_id: existing.user_id,
+      amount,
+      wallet_type: "cashout",
+      transaction_type: "credit",
+      source: "game_redeem",
+      description: `Redeemed $${amount.toFixed(2)} from ${existing.game_name}`,
+      created_by: user.id,
+    });
+
     await createNotification(
       existing.user_id,
-      isRedeem ? `${existing.game_name} redeem complete` : `${existing.game_name} load complete`,
-      isRedeem
-        ? `$${Number(existing.amount).toFixed(2)} was redeemed to your Spinora wallet.`
-        : `$${Number(existing.amount).toFixed(2)} was loaded to your ${existing.game_name} account.`,
+      `${existing.game_name} redeem complete! 💰`,
+      `$${amount.toFixed(2)} was redeemed from ${existing.game_name} and added to your Cash Out balance.`,
+      "success"
+    );
+  } else if (status === "completed") {
+    await createNotification(
+      existing.user_id,
+      `${existing.game_name} load complete! 🎮`,
+      `$${amount.toFixed(2)} was loaded to your ${existing.game_name} account.`,
       "success"
     );
   }
 
-  if (status === "failed" || status === "cancelled") {
+  // 2. When Load FAILS or is CANCELLED -> Refund wallet_balance
+  if ((status === "failed" || status === "cancelled") && isLoad && amount > 0) {
+    const { data: userProfile } = await db
+      .from("profiles")
+      .select("wallet_balance")
+      .eq("id", existing.user_id)
+      .single();
+
+    const currentBal = Number(userProfile?.wallet_balance ?? 0);
+    const newBal = Math.round((currentBal + amount) * 100) / 100;
+
+    await db
+      .from("profiles")
+      .update({ wallet_balance: newBal })
+      .eq("id", existing.user_id);
+
+    await db.from("wallet_transactions").insert({
+      user_id: existing.user_id,
+      amount,
+      wallet_type: "current",
+      transaction_type: "credit",
+      source: "game_load_refund",
+      description: `Load failed — $${amount.toFixed(2)} refunded (${existing.game_name})`,
+      created_by: user.id,
+    });
+
     await createNotification(
       existing.user_id,
-      `${existing.game_name} load update`,
-      `Your load request could not be completed. Contact support for help.`,
+      `${existing.game_name} load refunded ↩️`,
+      `Your load request could not be completed. $${amount.toFixed(2)} has been refunded to your Total Deposit wallet.`,
+      "warning"
+    );
+  } else if (status === "failed" || status === "cancelled") {
+    await createNotification(
+      existing.user_id,
+      `${existing.game_name} request update`,
+      `Your request was ${status}. Contact support if you need help.`,
       "warning"
     );
   }
 
   revalidatePath("/admin/game-loads");
+  revalidatePath("/admin/payouts");
+  revalidatePath("/dashboard/wallet");
+  revalidatePath("/dashboard/deposits");
+  revalidatePath("/dashboard");
   return { success: true };
 }

@@ -14,14 +14,14 @@ type Props = {
 export function RolloverTracker({ rollover }: Props) {
   if (!rollover) {
     return (
-      <div className="hub-card rounded-2xl p-5">
+      <div className="cosmic-glass-card rounded-2xl p-5">
         <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
             <TrendingUp className="size-5" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-foreground">Bonus wager tracker</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm font-semibold text-white">Bonus wager tracker</p>
+            <p className="text-xs text-purple-200/60">
               Load a bonus to your game account to track rollover progress here.
             </p>
           </div>
@@ -45,7 +45,7 @@ export function RolloverTracker({ rollover }: Props) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
-      className="hub-card hub-card-glow rounded-2xl p-5 sm:p-6"
+      className="cosmic-glass-card cosmic-glass-card-glow rounded-2xl p-5 sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -53,16 +53,16 @@ export function RolloverTracker({ rollover }: Props) {
             className={`flex size-10 items-center justify-center rounded-xl ${
               cashoutUnlocked
                 ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
-                : "bg-amber-500/15 text-amber-400"
+                : "bg-fuchsia-500/15 text-fuchsia-400"
             }`}
           >
             {cashoutUnlocked ? <Unlock className="size-5" /> : <Lock className="size-5" />}
           </span>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-400/90">
-              Deposit bonus rollover
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-400/90">
+              Dual-wallet rollover
             </p>
-            <h2 className="text-lg font-bold text-foreground">
+            <h2 className="text-lg font-bold text-white">
               ${wageredAmount.toFixed(0)} / ${requiredWager.toFixed(0)} wagered — {percentComplete}%
               completed
             </h2>
@@ -82,10 +82,10 @@ export function RolloverTracker({ rollover }: Props) {
         </span>
       </div>
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-y-2 cosmic-dual-wallet-bar">
         <Progress
           value={percentComplete}
-          className="h-2.5 bg-[#1a2030] [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:to-emerald-400 [&>div]:shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+          className="h-3 bg-[#0e0520] border border-purple-500/30 [&>div]:bg-gradient-to-r [&>div]:from-emerald-500 [&>div]:via-teal-400 [&>div]:to-cyan-400 [&>div]:shadow-[0_0_15px_rgba(16,185,129,0.7)]"
         />
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>

@@ -4,10 +4,12 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, Search, X, User } from "lucide-react";
+import { Menu, Search, X, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnimatedLogo } from "@/components/ui/animated-logo";
+import { BrandLogo } from "@/components/ui/brand-logo";
 import { createClient } from "@/lib/supabase/client";
+import { logoutUser } from "@/lib/auth/logout";
 
 const NotificationDropdown = dynamic(
   () =>
@@ -26,11 +28,11 @@ const UserAccountMenu = dynamic(
 );
 
 const navLinks = [
-  { href: "/games", label: "Games" },
-  { href: "/blog", label: "Blog" },
+  { href: "/", label: "Home" },
+  { href: "/#games", label: "Games" },
   { href: "/promotions", label: "Promotions" },
-  { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/vip", label: "VIP" },
+  { href: "/blog", label: "Blog" },
+  { href: "/#how-it-works", label: "How It Works" },
   { href: "/support", label: "Support" },
 ];
 
@@ -39,9 +41,12 @@ type NavbarProps = {
   onMenuClick?: () => void;
   /** Homepage: focus game search */
   onSearchClick?: () => void;
+  /** Cosmic Arcade Glow public landing */
+  variant?: "default" | "cosmic";
 };
 
-export function Navbar({ onMenuClick, onSearchClick }: NavbarProps = {}) {
+export function Navbar({ onMenuClick, onSearchClick, variant = "default" }: NavbarProps = {}) {
+  const cosmic = variant === "cosmic";
   const [open, setOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -70,28 +75,56 @@ export function Navbar({ onMenuClick, onSearchClick }: NavbarProps = {}) {
     setOpen(false);
   }
 
+  async function handleLogout() {
+    await logoutUser("/");
+    window.location.href = "/";
+  }
+
   const authActions = isLoggedIn ? (
     <>
       <NotificationDropdown buttonClassName="w-9 h-9" />
-      <Button size="sm" asChild className="hidden sm:inline-flex">
+      <Button size="sm" asChild className="hidden sm:inline-flex bg-gradient-to-r from-emerald-500 to-teal-500 text-black font-extrabold text-xs">
         <Link href="/dashboard/deposit">Deposit</Link>
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => void handleLogout()}
+        className="hidden lg:inline-flex text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 font-bold text-xs gap-1"
+      >
+        <LogOut className="size-3.5" /> Logout
       </Button>
       <UserAccountMenu compact />
     </>
+  ) : cosmic ? (
+    <>
+      <Link
+        href="/login"
+        className="hidden sm:inline-flex items-center rounded-2xl border border-cyan-400/50 bg-cyan-500/5 px-5 py-2 text-xs font-black uppercase tracking-wider text-cyan-100 hover:bg-cyan-500/15 transition-all"
+      >
+        Log In
+      </Link>
+      <Link
+        href="/register"
+        className="cosmic-gold-btn inline-flex items-center px-5 py-2 text-xs uppercase tracking-wider font-extrabold"
+      >
+        Sign Up
+      </Link>
+    </>
   ) : (
     <>
-      <Button variant="ghost" size="sm" asChild>
-        <Link href="/login">Login</Link>
+      <Button variant="ghost" size="sm" asChild className="font-extrabold text-xs">
+        <Link href="/login">Log In</Link>
       </Button>
-      <Button size="sm" asChild>
-        <Link href="/register">Get Started</Link>
+      <Button size="sm" asChild className="bg-gradient-to-r from-amber-400 to-orange-500 text-black font-black text-xs px-4">
+        <Link href="/register">Sign Up</Link>
       </Button>
     </>
   );
 
   const mobileAuthActions = isLoggedIn ? (
     <>
-      <Button asChild>
+      <Button asChild className="bg-emerald-500 text-black font-bold">
         <Link href="/dashboard/deposit" onClick={closeMobile}>
           Deposit
         </Link>
@@ -101,24 +134,40 @@ export function Navbar({ onMenuClick, onSearchClick }: NavbarProps = {}) {
           Dashboard
         </Link>
       </Button>
+      <Button
+        variant="ghost"
+        onClick={() => {
+          closeMobile();
+          void handleLogout();
+        }}
+        className="text-rose-400 hover:bg-rose-500/10 font-bold text-xs"
+      >
+        <LogOut className="h-4 w-4 mr-1" /> Logout
+      </Button>
     </>
   ) : (
     <>
       <Button variant="outline" asChild>
         <Link href="/login" onClick={closeMobile}>
-          <User className="h-4 w-4" /> Login
+          <User className="h-4 w-4 mr-1" /> Log In
         </Link>
       </Button>
-      <Button asChild>
+      <Button asChild className="bg-gradient-to-r from-amber-400 to-orange-500 text-black font-bold">
         <Link href="/register" onClick={closeMobile}>
-          Get Started
+          Sign Up
         </Link>
       </Button>
     </>
   );
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 glass">
+    <header
+      className={
+        cosmic
+          ? "fixed top-0 left-0 right-0 z-50 border-b border-purple-500/25 bg-[#0a0418]/85 backdrop-blur-xl shadow-[0_4px_30px_rgba(88,28,135,0.15)]"
+          : "fixed top-0 left-0 right-0 z-50 glass"
+      }
+    >
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-2">
           {onMenuClick && (
@@ -131,15 +180,25 @@ export function Navbar({ onMenuClick, onSearchClick }: NavbarProps = {}) {
               <Menu className="h-5 w-5" />
             </button>
           )}
-          <AnimatedLogo textClassName="text-lg" />
+          {cosmic ? (
+            <Link href="/">
+              <BrandLogo className="h-9" showText />
+            </Link>
+          ) : (
+            <AnimatedLogo textClassName="text-lg" />
+          )}
         </div>
 
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-6 lg:gap-8">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+              className={
+                cosmic
+                  ? "text-xs font-bold uppercase tracking-[0.14em] text-purple-200/70 hover:text-amber-300 transition-colors"
+                  : "text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5 font-medium"
+              }
             >
               {link.label}
             </Link>
@@ -197,7 +256,7 @@ export function Navbar({ onMenuClick, onSearchClick }: NavbarProps = {}) {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
+                  className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors font-medium"
                   onClick={closeMobile}
                 >
                   {link.label}

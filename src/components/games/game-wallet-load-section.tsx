@@ -662,66 +662,105 @@ export function GameWalletLoadSection({
   }
 
   return (
-    <section className="rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/40 to-[#161616] p-5 space-y-5">
-      <div className="flex items-center gap-2">
-        <Zap className="h-5 w-5 text-emerald-400" />
-        <h2 className="font-bold text-white">{game.name} Account</h2>
+    <section className="game-portal-wallet-section rounded-2xl p-5 space-y-5">
+      {/* Hero Launcher Banner */}
+      <div className="rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/20 via-orange-600/10 to-[#0a0418] p-4 flex flex-wrap items-center justify-between gap-3 shadow-[0_0_30px_rgba(251,191,36,0.2)]">
+        <div>
+          <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+            <span className="text-xl">🎰</span> Ready to Play {game.name}?
+          </h3>
+          <p className="text-xs text-amber-200/80 mt-0.5">
+            {savedAccount
+              ? `Logged in as: ${savedAccount.game_username}`
+              : "Create your free account below to start playing."}
+          </p>
+        </div>
+
+        <div className="flex gap-2 w-full sm:w-auto">
+          {savedAccount && game.downloadUrl ? (
+            <button
+              type="button"
+              onClick={() => {
+                const creds = `Username: ${savedAccount.game_username}${savedAccount.game_password ? `\nPassword: ${savedAccount.game_password}` : ""}`;
+                void navigator.clipboard.writeText(creds);
+                toast.success(`Copied ${game.name} credentials! Opening web app…`);
+                window.open(game.downloadUrl, "_blank", "noopener,noreferrer");
+              }}
+              className="w-full sm:w-auto px-4 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-black font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+            >
+              🚀 Copy Login &amp; Launch {game.name}
+            </button>
+          ) : game.downloadUrl ? (
+            <a
+              href={game.downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-4 py-3 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-bold text-xs uppercase tracking-wider hover:bg-cyan-500/30 transition-colors flex items-center justify-center gap-2"
+            >
+              🚀 Open {game.name} Web App
+            </a>
+          ) : null}
+        </div>
       </div>
 
-      {/* Your Account — like Game Vault */}
-      <div className="rounded-xl border border-white/10 bg-black/30 p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Your Account
+      <div className="flex items-center gap-2">
+        <Zap className="h-5 w-5 text-cyan-400" />
+        <h2 className="font-black text-white uppercase tracking-wide text-sm">1-Click Game Portal</h2>
+      </div>
+
+      {/* Credentials panel */}
+      <div className="game-portal-credentials rounded-xl p-4 space-y-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
+          1-Click Credentials
         </p>
 
         {savedAccount ? (
           <>
-            <div className="flex items-center gap-2">
-              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Active
-              </span>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">Username</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-white">{savedAccount.game_username}</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 w-20 shrink-0">
+                  Username
+                </label>
+                <div className="flex-1 flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-black/40 px-3 py-2">
+                  <span className="font-mono text-sm text-white flex-1 truncate">{savedAccount.game_username}</span>
                   <button
                     type="button"
                     onClick={() => copyText(savedAccount.game_username, "Username")}
-                    className="text-muted-foreground hover:text-white"
+                    className="game-portal-copy-btn shrink-0"
                   >
-                    <Copy className="h-3.5 w-3.5" />
+                    Copy
                   </button>
                 </div>
               </div>
               {savedAccount.game_password && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-muted-foreground">Password</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-white">
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 w-20 shrink-0">
+                    Password
+                  </label>
+                  <div className="flex-1 flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-black/40 px-3 py-2">
+                    <span className="font-mono text-sm text-white flex-1 truncate">
                       {showPassword ? savedAccount.game_password : "••••••••"}
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="text-muted-foreground hover:text-white"
+                      className="text-purple-300/60 hover:text-white p-1"
                     >
                       {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
                     <button
                       type="button"
                       onClick={() => copyText(savedAccount.game_password!, "Password")}
-                      className="text-muted-foreground hover:text-white"
+                      className="game-portal-copy-btn shrink-0"
                     >
-                      <Copy className="h-3.5 w-3.5" />
+                      Copy
                     </button>
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5 mt-1">
-                <span className="text-muted-foreground">Last known balance</span>
-                <span className="font-semibold text-white">
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-cyan-500/15">
+                <span className="text-xs text-purple-300/70">Last known balance</span>
+                <span className="font-bold text-amber-300 tabular-nums">
                   {lastKnownBalance !== null ? `$${lastKnownBalance.toFixed(2)}` : "—"}
                 </span>
               </div>
@@ -731,7 +770,7 @@ export function GameWalletLoadSection({
               type="button"
               onClick={handleCheckBalance}
               disabled={checkingBalance || pendingCheck || pendingCreate || !savedAccount?.game_username}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-50"
             >
               {checkingBalance || pendingCheck ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -742,12 +781,9 @@ export function GameWalletLoadSection({
             </button>
           </>
         ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              No account yet. Use <strong className="text-white">Create Account</strong> below or
-              the button in this panel — free, no wallet charge.
-            </p>
-          </>
+          <p className="text-sm text-purple-200/65">
+            No account yet. Use <strong className="text-white">Create Account</strong> below — free, no wallet charge.
+          </p>
         )}
 
         {customMode ? (
@@ -976,6 +1012,27 @@ export function GameWalletLoadSection({
               Load from your Total Deposit balance into {game.name}.
             </p>
 
+            {/* Quick Amount Chips */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mr-1">Quick Select:</span>
+              {[5, 10, 25, 50, 100].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setAmount(String(preset))}
+                  disabled={!savedAccount}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg border text-xs font-bold transition-all disabled:opacity-40",
+                    amount === String(preset)
+                      ? "border-amber-400 bg-amber-400/20 text-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.2)]"
+                      : "border-white/10 bg-black/40 text-muted-foreground hover:text-white hover:border-white/30"
+                  )}
+                >
+                  ${preset}
+                </button>
+              ))}
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base text-muted-foreground">$</span>
@@ -990,6 +1047,17 @@ export function GameWalletLoadSection({
                   className="w-full rounded-xl border border-white/10 bg-black/30 pl-8 pr-4 py-3.5 sm:py-4 text-base text-white disabled:opacity-50"
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAmount("20");
+                  setFundsTab("load");
+                }}
+                disabled={!savedAccount}
+                className="game-portal-quick-load-btn !py-2.5 !text-xs disabled:opacity-40"
+              >
+                Quick Load $20 Credits
+              </button>
               <button
                 type="button"
                 onClick={handleLoad}

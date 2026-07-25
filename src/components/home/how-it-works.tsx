@@ -29,7 +29,8 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <HomeSection tinted>
+    <section id="how-it-works" className="scroll-mt-24">
+      <HomeSection tinted className="cosmic-glass-card border-purple-500/25">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -54,7 +55,7 @@ export function HowItWorks() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="rounded-xl p-5 text-center bg-[#1e1e1e] border border-white/5 hover:border-orange-500/20 transition-colors"
+              className="rounded-xl p-5 text-center cosmic-glass-card border-purple-500/25 hover:border-cyan-400/30 transition-colors"
             >
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl gradient-bg mb-3">
                 <Icon className="h-6 w-6 text-white" />
@@ -67,5 +68,6 @@ export function HowItWorks() {
         })}
       </div>
     </HomeSection>
+    </section>
   );
 }

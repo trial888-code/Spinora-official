@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { adminDb, authorize } from "@/lib/actions/admin/core";
 import { upsertGameAction } from "@/lib/actions/admin/cms";
 import { requirePermission } from "@/lib/data/admin";
+import { GAMES } from "@/lib/games";
 
 async function saveGameServerConfig(
   gameId: string,
@@ -66,34 +67,127 @@ export default async function AdminGamesPage() {
       .select("game_id, webhook_secret, is_enabled, api_base_url, api_username, api_password, notes"),
   ]);
 
-  const games = gamesData ?? [];
+  const dbGames = gamesData ?? [];
+  const dbGamesBySlug = new Map(dbGames.map((g) => [g.slug, g]));
   const configsByGameId = new Map(
     (configsData ?? []).map((c) => [c.game_id, c])
   );
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  // Merge all 30 catalog games with DB overrides
+  const all30Games = GAMES.map((cg) => {
+    const dbG = dbGamesBySlug.get(cg.slug);
+    return {
+      id: dbG?.id || cg.id,
+      slug: cg.slug,
+      name: dbG?.name || cg.name,
+      category: cg.category,
+      description: dbG?.description || cg.bio,
+      image_url: dbG?.image_url || cg.image,
+      play_url: dbG?.play_url || cg.downloadUrl,
+      download_url: dbG?.download_url || cg.downloadUrl,
+      badge_text: dbG?.badge_text || (cg.upcoming ? "UPCOMING" : cg.popular ? "HOT" : cg.trending ? "TRENDING" : null),
+      is_active: dbG?.is_active ?? !cg.upcoming,
+      is_featured: dbG?.is_featured ?? Boolean(cg.popular || cg.topRated),
+      is_upcoming: Boolean(cg.upcoming),
+    };
+  });
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <AdminPageHeader
-        title="Games"
-        description="Set each game's thumbnail image, play URL and download URL. Upload images to Supabase Storage → cms-media bucket, then paste the public URL here."
-      />
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <span className="inline-block px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-black uppercase tracking-wider border border-cyan-400/30 mb-1">
+            🎮 Full Games Manager ({all30Games.length} Games)
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-black text-white">All 30 Games Cards Manager</h1>
+          <p className="text-xs text-muted-foreground">
+            Manage cover photos, availability status, play links, and categories for all 30 games.
+          </p>
+        </div>
 
-      {/* Image upload guide */}
-      <GlassCard className="mb-6 p-4">
-        <p className="text-sm font-medium text-ws-green-deep dark:text-ws-green">How to add game images</p>
-        <ol className="mt-2 space-y-1 text-sm text-muted-foreground">
-          <li>1. Go to <strong className="text-foreground">Supabase dashboard → Storage → cms-media</strong></li>
-          <li>2. Click <strong className="text-foreground">Upload file</strong> and upload your game image (PNG/JPG/WebP, max 8 MB)</li>
-          <li>3. Click the uploaded file → <strong className="text-foreground">Copy URL</strong></li>
-          <li>4. Click <strong className="text-foreground">Edit</strong> on the game below and paste the URL into Image URL</li>
-        </ol>
-      </GlassCard>
+        <EntityEditDialog
+          title="➕ Add New Game Card"
+          triggerLabel="➕ Add New Game Card"
+          fields={[
+            {
+              name: "name",
+              label: "Game Name (e.g. Golden Dragon)",
+              type: "text",
+              defaultValue: "",
+            },
+            {
+              name: "slug",
+              label: "URL Slug (optional, e.g. golden-dragon)",
+              type: "text",
+              defaultValue: "",
+              hint: "Lowercase hyphens only. Leave blank to generate automatically.",
+            },
+            {
+              name: "description",
+              label: "Game Description",
+              type: "textarea",
+              defaultValue: "",
+            },
+            {
+              name: "image_url",
+              label: "Game Cover Image URL",
+              type: "text",
+              defaultValue: "",
+              hint: "Public image URL for the game thumbnail",
+            },
+            {
+              name: "play_url",
+              label: "Play Online URL (Web App link)",
+              type: "text",
+              defaultValue: "",
+              hint: "e.g. https://dl.goldendragon.com/",
+            },
+            {
+              name: "download_url",
+              label: "Download APK / App Link",
+              type: "text",
+              defaultValue: "",
+            },
+            {
+              name: "badge_text",
+              label: "Badge (HOT / NEW / EVENT / UPCOMING)",
+              type: "text",
+              defaultValue: "NEW",
+            },
+            {
+              name: "is_active",
+              label: "Active (Visible to players)",
+              type: "switch",
+              defaultValue: true,
+            },
+            {
+              name: "is_featured",
+              label: "Featured (Show on homepage carousel)",
+              type: "switch",
+              defaultValue: true,
+            },
+          ]}
+          action={async (v: Record<string, FieldValue>) => {
+            "use server";
+            return upsertGameAction({
+              name: String(v.name),
+              slug: v.slug ? String(v.slug) : undefined,
+              description: String(v.description),
+              image_url: String(v.image_url),
+              play_url: String(v.play_url),
+              download_url: String(v.download_url),
+              badge_text: String(v.badge_text),
+              is_active: Boolean(v.is_active),
+              is_featured: Boolean(v.is_featured),
+            });
+          }}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {games.map((game, i) => {
+        {all30Games.map((game, i) => {
           const initials = game.name
             .split(" ")
             .map((w: string) => w[0])
@@ -105,14 +199,15 @@ export default async function AdminGamesPage() {
           const webhookUrl = `${siteUrl}/api/webhooks/game/${game.slug}`;
 
           return (
-            <GlassCard key={game.id} className="flex flex-col overflow-hidden p-0">
-              {/* Thumbnail */}
-              <div className="relative aspect-video w-full shrink-0 bg-foreground/5">
+            <GlassCard key={game.slug} className="flex flex-col overflow-hidden p-0 border border-white/10 hover:border-amber-400/40 transition-all">
+              {/* Thumbnail Cover Image */}
+              <div className="relative aspect-video w-full shrink-0 bg-foreground/5 overflow-hidden">
                 {game.image_url ? (
                   <Image
                     src={game.image_url}
                     alt={game.name}
                     fill
+                    unoptimized
                     className="object-cover"
                     sizes="(max-width: 768px) 100vw, 33vw"
                   />
@@ -126,30 +221,43 @@ export default async function AdminGamesPage() {
                   </div>
                 )}
                 {game.badge_text && (
-                  <Badge className="absolute top-2 right-2 bg-emerald-500 text-foreground text-xs uppercase">
+                  <Badge className="absolute top-2 right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-black font-black text-[10px] uppercase shadow-md">
                     {game.badge_text}
                   </Badge>
                 )}
+                <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[10px] font-bold text-cyan-300 border border-cyan-400/30">
+                  {game.category}
+                </span>
               </div>
 
               {/* Info */}
               <div className="flex flex-1 flex-col gap-3 p-4">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold">{game.name}</p>
-                    {!game.is_active && (
-                      <Badge className="bg-foreground/8 text-muted-foreground text-xs">
-                        Inactive
-                      </Badge>
-                    )}
-                    {game.is_featured && (
-                      <Badge className="bg-ws-green/15 text-ws-green-deep dark:text-ws-green text-xs">
-                        Featured
-                      </Badge>
-                    )}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-bold text-base text-white">{game.name}</p>
+                    <div className="flex items-center gap-1">
+                      {!game.is_active ? (
+                        <Badge className="bg-red-500/20 text-red-300 text-[10px] border border-red-500/30">
+                          Inactive
+                        </Badge>
+                      ) : game.is_upcoming ? (
+                        <Badge className="bg-purple-500/20 text-purple-300 text-[10px] border border-purple-500/30">
+                          Upcoming
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px] border border-emerald-500/30">
+                          Active
+                        </Badge>
+                      )}
+                      {game.is_featured && (
+                        <Badge className="bg-amber-400/20 text-amber-300 text-[10px] border border-amber-400/30">
+                          ⭐ Featured
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   {game.description && (
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
                       {game.description}
                     </p>
                   )}

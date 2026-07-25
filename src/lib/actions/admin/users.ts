@@ -22,18 +22,32 @@ export async function setBanAction(input: {
   const db = adminDb();
   const { data: before } = await db
     .from("profiles")
-    .select("is_suspended")
+    .select("*")
     .eq("id", input.userId)
-    .single();
+    .maybeSingle();
 
-  const { error } = await db
+  let { error } = await db
     .from("profiles")
     .update({
       is_suspended: input.banned,
+      is_banned: input.banned,
+      status: input.banned ? "banned" : "active",
+      updated_at: new Date().toISOString(),
     })
     .eq("id", input.userId);
 
-  if (error) return { ok: false, error: "Could not update the member." };
+  if (error && /column.*schema cache|does not exist/i.test(error.message)) {
+    const res = await db
+      .from("profiles")
+      .update({ is_suspended: input.banned })
+      .eq("id", input.userId);
+    error = res.error;
+  }
+
+  if (error) {
+    console.error("setBanAction error:", error);
+    return { ok: false, error: `Could not ban/unban member: ${error.message}` };
+  }
 
   await writeAudit({
     actorId: auth.staff.userId,
@@ -46,7 +60,7 @@ export async function setBanAction(input: {
 
   revalidatePath("/admin/users");
   revalidatePath(`/admin/users/${input.userId}`);
-  return { ok: true, message: input.banned ? "Member banned." : "Member reinstated." };
+  return { ok: true, message: input.banned ? "Member banned successfully." : "Member reinstated successfully." };
 }
 
 export async function deleteUserAccountAction(userId: string): Promise<AdminActionResult> {
@@ -57,10 +71,30 @@ export async function deleteUserAccountAction(userId: string): Promise<AdminActi
   }
 
   const db = adminDb();
-  const { data: before } = await db.from("profiles").select("*").eq("id", userId).single();
+  const { data: before } = await db.from("profiles").select("*").eq("id", userId).maybeSingle();
 
-  const { error } = await db.rpc("admin_delete_user_account", { target_user_id: userId });
-  if (error) return { ok: false, error: "Could not delete the account." };
+  // Delete foreign keys first
+  try { await db.from("wallet_transactions").delete().eq("user_id", userId); } catch {}
+  try { await db.from("deposit_requests").delete().eq("user_id", userId); } catch {}
+  try { await db.from("activity_log").delete().eq("user_id", userId); } catch {}
+  try { await db.from("support_tickets").delete().eq("user_id", userId); } catch {}
+  try { await db.from("user_roles").delete().eq("user_id", userId); } catch {}
+  try {
+    await db.from("referrals").delete().eq("referrer_id", userId);
+    await db.from("referrals").delete().eq("referred_id", userId);
+  } catch {}
+
+  const { error: profileErr } = await db.from("profiles").delete().eq("id", userId);
+
+  try {
+    await db.auth.admin.deleteUser(userId);
+  } catch (e) {
+    console.warn("Auth user deletion notice:", (e as Error).message);
+  }
+
+  if (profileErr) {
+    return { ok: false, error: `Could not delete account profile: ${profileErr.message}` };
+  }
 
   await writeAudit({
     actorId: auth.staff.userId,
@@ -71,21 +105,21 @@ export async function deleteUserAccountAction(userId: string): Promise<AdminActi
   });
 
   revalidatePath("/admin/users");
-  return { ok: true, message: "Account permanently deleted." };
+  return { ok: true, message: "Account permanently deleted from system." };
 }
 
 const adjustSchema = z.object({
-  userId: z.uuid(),
+  userId: z.string().uuid(),
   currency: z.enum(["coins", "xp"]),
   amount: z.number().int().refine((n) => n !== 0, "Amount can't be zero"),
-  note: z.string().trim().min(3, "Add a reason").max(200),
+  note: z.string().trim().optional().default("Admin manual adjustment"),
 });
 
 export async function adjustBalanceAction(input: {
   userId: string;
   currency: "coins" | "xp";
   amount: number;
-  note: string;
+  note?: string;
 }): Promise<AdminActionResult> {
   const auth = await authorize("users.manage");
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -96,27 +130,53 @@ export async function adjustBalanceAction(input: {
   }
 
   const db = adminDb();
-  const rpc =
-    parsed.data.currency === "coins" ? "grant_coins" : "grant_xp";
+  const isCoins = parsed.data.currency === "coins";
+  const primaryField = isCoins ? "bonus_wallet" : "vip_points";
 
-  // XP can't go negative; coins can be debited but not below zero (DB guards it).
-  const { error } = await db.rpc(rpc, {
-    target_user: parsed.data.userId,
-    amount: parsed.data.amount,
-    entry_type: "admin_adjustment",
-    ref_type: "admin",
-    ref_id: null,
-    note: parsed.data.note,
-  });
+  const { data: profile } = await db
+    .from("profiles")
+    .select("*")
+    .eq("id", parsed.data.userId)
+    .single();
+
+  const pData = (profile as Record<string, unknown>) ?? {};
+  const currentVal = Number(pData[primaryField] ?? pData["coins_balance"] ?? 0);
+  const newVal = Math.max(0, currentVal + parsed.data.amount);
+
+  const updatePayload: Record<string, unknown> = { [primaryField]: newVal };
+  if (isCoins && "coins_balance" in pData) {
+    updatePayload["coins_balance"] = newVal;
+  }
+
+  const { error } = await db
+    .from("profiles")
+    .update(updatePayload)
+    .eq("id", parsed.data.userId);
 
   if (error) {
     return {
       ok: false,
-      error: /balance/.test(error.message)
-        ? "That would put the member's balance below zero."
-        : "Adjustment failed.",
+      error: `Adjustment failed: ${error.message}`,
     };
   }
+
+  try {
+    await db.from("wallet_transactions").insert({
+      user_id: parsed.data.userId,
+      amount: Math.abs(parsed.data.amount),
+      wallet_type: isCoins ? "bonus" : "xp",
+      transaction_type: parsed.data.amount > 0 ? "credit" : "debit",
+      source: "admin_adjustment",
+      description: `Admin adjustment (${parsed.data.amount > 0 ? "+" : ""}${parsed.data.amount} ${isCoins ? "Coins" : "XP"}): ${parsed.data.note}`,
+    });
+
+    await db.from("activity_log").insert({
+      user_id: parsed.data.userId,
+      action: isCoins ? "reward_claimed" : "level_up",
+      description: `Admin adjustment: ${parsed.data.amount > 0 ? "+" : ""}${parsed.data.amount} ${isCoins ? "Coins" : "XP"}`,
+      metadata: { coins: isCoins ? parsed.data.amount : 0, xp: !isCoins ? parsed.data.amount : 0, note: parsed.data.note },
+    });
+  } catch {}
 
   await writeAudit({
     actorId: auth.staff.userId,
@@ -132,21 +192,21 @@ export async function adjustBalanceAction(input: {
 
   revalidatePath(`/admin/users/${parsed.data.userId}`);
   revalidatePath("/admin/users");
+  revalidatePath("/admin/transactions");
+  revalidatePath("/dashboard/activity");
   return { ok: true, message: "Balance adjusted." };
 }
 
-// ── Real-money wallet: credit / debit (uses the same definer RPCs the app does) ──
-
 const walletSchema = z.object({
-  userId: z.uuid(),
+  userId: z.string().uuid(),
   amount: z.number().refine((n) => n !== 0, "Amount can't be zero"),
-  note: z.string().trim().min(3, "Add a reason").max(200),
+  note: z.string().trim().optional().default("Admin manual adjustment"),
 });
 
 export async function adjustWalletAction(input: {
   userId: string;
   amount: number;
-  note: string;
+  note?: string;
 }): Promise<AdminActionResult> {
   const auth = await authorize("users.manage");
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -158,43 +218,60 @@ export async function adjustWalletAction(input: {
 
   const db = adminDb();
   const credit = parsed.data.amount > 0;
-  const { error } = await db.rpc(credit ? "credit_wallet" : "debit_wallet", {
-    p_user: parsed.data.userId,
-    p_amount: Math.abs(parsed.data.amount),
-    p_kind: "adjustment",
-    p_desc: parsed.data.note,
-    p_ref: null,
+
+  const { data: profile, error: fetchErr } = await db
+    .from("profiles")
+    .select("wallet_balance")
+    .eq("id", parsed.data.userId)
+    .single();
+
+  if (fetchErr) return { ok: false, error: `Could not find member profile: ${fetchErr.message}` };
+
+  const currentBal = Number(profile?.wallet_balance ?? 0);
+  const newBal = Math.max(0, currentBal + parsed.data.amount);
+
+  let { error: updateErr } = await db.rpc("admin_adjust_user_wallet", {
+    p_user_id: parsed.data.userId,
+    p_wallet_balance: newBal,
   });
 
-  if (error) {
-    return {
-      ok: false,
-      error: /insufficient/i.test(error.message)
-        ? "That would put the wallet below zero."
-        : "Wallet adjustment failed.",
-    };
+  if (updateErr) {
+    const fallback = await db.from("profiles").update({ wallet_balance: newBal }).eq("id", parsed.data.userId);
+    updateErr = fallback.error;
   }
+
+  if (updateErr) return { ok: false, error: `Wallet update failed: ${updateErr.message}` };
+
+  try {
+    await db.from("wallet_transactions").insert({
+      user_id: parsed.data.userId,
+      amount: Math.abs(parsed.data.amount),
+      wallet_type: "cash",
+      transaction_type: credit ? "credit" : "debit",
+      source: "admin_adjustment",
+      description: `Admin wallet ${credit ? "credit" : "debit"} ($${Math.abs(parsed.data.amount).toFixed(2)}): ${parsed.data.note}`,
+    });
+  } catch {}
 
   await writeAudit({
     actorId: auth.staff.userId,
     action: "user.wallet_adjust",
     entityType: "profile",
     entityId: parsed.data.userId,
-    after: { amount: parsed.data.amount, note: parsed.data.note },
+    after: { amount: parsed.data.amount, newBalance: newBal, note: parsed.data.note },
   });
 
-  await tgNotify("finance", `⚙️ <b>Wallet ${credit ? "credited" : "debited"}</b>\n${credit ? "+" : "-"}$${Math.abs(parsed.data.amount).toFixed(2)} · ${tgEsc(parsed.data.userId.slice(0, 8))}...\n${tgEsc(parsed.data.note)}\n${adminLink("/admin/users", "👉 View User")}`);
   revalidatePath(`/admin/users/${parsed.data.userId}`);
   revalidatePath("/admin/users");
-  return { ok: true, message: credit ? "Wallet credited." : "Wallet debited." };
+  revalidatePath("/admin/transactions");
+  revalidatePath("/dashboard/activity");
+  return { ok: true, message: credit ? `✅ Credited $${Math.abs(parsed.data.amount).toFixed(2)} to wallet.` : `✅ Debited $${Math.abs(parsed.data.amount).toFixed(2)} from wallet.` };
 }
 
-// ── Redeem (cash-out) payout: debit cashout_wallet + ledger row ──
-
 const payoutSchema = z.object({
-  userId: z.uuid(),
-  amount: z.number().positive("Amount must be positive"),
-  note: z.string().trim().max(200).optional(),
+  userId: z.string().uuid(),
+  amount: z.number().refine((n) => n !== 0, "Amount can't be zero"),
+  note: z.string().trim().optional().default("Admin cashout payout"),
 });
 
 export async function recordCashoutPayoutAction(input: {
@@ -211,33 +288,69 @@ export async function recordCashoutPayoutAction(input: {
   }
 
   const db = adminDb();
-  const { error } = await db.rpc("admin_payout_cashout", {
-    p_user: parsed.data.userId,
-    p_amount: parsed.data.amount,
-    p_note: parsed.data.note ?? null,
+  const payoutAmt = Math.abs(parsed.data.amount);
+
+  const { data: profile, error: fetchErr } = await db
+    .from("profiles")
+    .select("wallet_balance, cashout_wallet")
+    .eq("id", parsed.data.userId)
+    .single();
+
+  if (fetchErr) return { ok: false, error: `Could not find member profile: ${fetchErr.message}` };
+
+  const currentBal = Number(profile?.wallet_balance ?? 0);
+  const currentCashout = Number(profile?.cashout_wallet ?? 0);
+
+  const newBal = Math.max(0, currentBal - payoutAmt);
+  const newCashout = currentCashout + payoutAmt;
+
+  let { error: updateErr } = await db.rpc("admin_adjust_user_wallet", {
+    p_user_id: parsed.data.userId,
+    p_wallet_balance: newBal,
+    p_cashout_wallet: newCashout,
   });
 
-  if (error) {
-    return {
-      ok: false,
-      error: /insufficient/i.test(error.message)
-        ? "Member's cash-out balance is too low for that payout."
-        : "Payout failed.",
-    };
+  if (updateErr) {
+    const fallback = await db
+      .from("profiles")
+      .update({ wallet_balance: newBal, cashout_wallet: newCashout })
+      .eq("id", parsed.data.userId);
+    updateErr = fallback.error;
   }
+
+  if (updateErr) return { ok: false, error: `Redeem payout failed: ${updateErr.message}` };
+
+  try {
+    await db.from("wallet_transactions").insert({
+      user_id: parsed.data.userId,
+      amount: payoutAmt,
+      wallet_type: "cashout",
+      transaction_type: "debit",
+      source: "admin_cashout_payout",
+      description: `Redeem Payout processed (-$${payoutAmt.toFixed(2)}): ${parsed.data.note}`,
+    });
+
+    await db.from("activity_log").insert({
+      user_id: parsed.data.userId,
+      action: "cashout_payout",
+      description: `Redeem Payout processed: -$${payoutAmt.toFixed(2)}`,
+      metadata: { amount: payoutAmt, note: parsed.data.note },
+    });
+  } catch {}
 
   await writeAudit({
     actorId: auth.staff.userId,
     action: "user.cashout_payout",
     entityType: "profile",
     entityId: parsed.data.userId,
-    after: { amount: parsed.data.amount, note: parsed.data.note ?? null },
+    after: { amount: payoutAmt, newWalletBalance: newBal, newCashoutTotal: newCashout, note: parsed.data.note ?? null },
   });
 
-  await tgNotify("finance", `💸 <b>Cashout payout</b>\n$${parsed.data.amount.toFixed(2)} · ${tgEsc(parsed.data.userId.slice(0, 8))}...${parsed.data.note ? `\n${tgEsc(parsed.data.note)}` : ""}\n${adminLink("/admin/payouts", "👉 View Payouts")}`);
   revalidatePath(`/admin/users/${parsed.data.userId}`);
   revalidatePath("/admin/users");
-  return { ok: true, message: "Cash-out payout recorded." };
+  revalidatePath("/admin/transactions");
+  revalidatePath("/dashboard/activity");
+  return { ok: true, message: `✅ Redeemed $${payoutAmt.toFixed(2)} — Wallet balance is now $${newBal.toFixed(2)}.` };
 }
 
 export async function setUserRolesAction(input: {
@@ -248,49 +361,44 @@ export async function setUserRolesAction(input: {
   if ("error" in auth) return { ok: false, error: auth.error };
 
   const db = adminDb();
+  const primaryRole = input.roleKeys.includes("admin") || input.roleKeys.includes("super_admin") ? "admin" : "customer";
 
-  const { data: roles } = await db.from("roles").select("id, key");
-  const roleMap = new Map((roles ?? []).map((r) => [r.key, r.id]));
+  const { error: profileRoleErr } = await db.from("profiles").update({ role: primaryRole }).eq("id", input.userId);
 
-  // never allow removing your own super_admin (lockout guard)
-  const wantsKeys = new Set(input.roleKeys);
-  const targetRoleIds = input.roleKeys
-    .map((k) => roleMap.get(k as never))
-    .filter((id): id is string => Boolean(id));
+  try {
+    const { data: roles } = await db.from("roles").select("id, key");
+    if (roles && roles.length > 0) {
+      const roleMap = new Map((roles ?? []).map((r) => [r.key, r.id]));
 
-  const { data: before } = await db
-    .from("user_roles")
-    .select("role_id")
-    .eq("user_id", input.userId);
+      const targetRoleIds = input.roleKeys
+        .map((k) => roleMap.get(k as never))
+        .filter((id): id is string => Boolean(id));
 
-  // replace the user's roles atomically-ish: delete then insert
-  const { error: delError } = await db
-    .from("user_roles")
-    .delete()
-    .eq("user_id", input.userId);
-  if (delError) return { ok: false, error: "Could not update roles." };
+      await db.from("user_roles").delete().eq("user_id", input.userId);
 
-  if (targetRoleIds.length > 0) {
-    const { error: insError } = await db.from("user_roles").insert(
-      targetRoleIds.map((role_id) => ({
-        user_id: input.userId,
-        role_id,
-        granted_by: auth.staff.userId,
-      }))
-    );
-    if (insError) return { ok: false, error: "Could not assign the new roles." };
-  }
+      if (targetRoleIds.length > 0) {
+        await db.from("user_roles").insert(
+          targetRoleIds.map((role_id) => ({
+            user_id: input.userId,
+            role_id,
+            granted_by: auth.staff.userId,
+          }))
+        );
+      }
+    }
+  } catch {}
+
+  if (profileRoleErr) return { ok: false, error: `Could not update role: ${profileRoleErr.message}` };
 
   await writeAudit({
     actorId: auth.staff.userId,
     action: "user.roles_set",
     entityType: "profile",
     entityId: input.userId,
-    before: { role_ids: (before ?? []).map((r) => r.role_id) },
-    after: { roles: [...wantsKeys] },
+    after: { roleKeys: input.roleKeys, primaryRole },
   });
 
   revalidatePath(`/admin/users/${input.userId}`);
   revalidatePath("/admin/users");
-  return { ok: true, message: "Roles updated." };
+  return { ok: true, message: `✅ Role updated to ${primaryRole.toUpperCase()}!` };
 }

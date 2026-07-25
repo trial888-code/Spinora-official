@@ -18,6 +18,7 @@ import {
   Banknote,
   History,
   Wallet,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUnreadMessages } from "@/hooks/use-unread-messages";
@@ -29,6 +30,7 @@ const ACCOUNT_LINKS = [
   { href: "/dashboard/wallet", label: "Wallet", icon: Wallet },
   { href: "/dashboard/deposit", label: "Deposit", icon: Banknote },
   { href: "/dashboard/withdraw", label: "Withdraw / Cash Out", icon: Banknote },
+  { href: "/blog", label: "Blog & Guides", icon: FileText },
   { href: "/dashboard/kyc", label: "KYC Verification", icon: ShieldCheck },
   { href: "/dashboard/deposits", label: "My Deposits", icon: History },
   { href: "/dashboard/messages", label: "Messages", icon: MessageSquare },

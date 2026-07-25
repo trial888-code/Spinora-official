@@ -7,9 +7,11 @@ import {
   Coins,
   Inbox,
   LifeBuoy,
+  ShieldCheck,
   TrendingUp,
   UserPlus,
   Users,
+  Zap,
 } from "lucide-react";
 
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -39,6 +41,7 @@ export default async function AdminOverviewPage() {
     recentSignups,
     recentTickets,
     fulfilledRequests,
+    paymentOrdersCount,
   ] = await Promise.all([
     getDashboardStats(86_400_000),
     db.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", since7d),
@@ -51,65 +54,67 @@ export default async function AdminOverviewPage() {
       .limit(6),
     db.from("support_tickets").select("id, ticket_no, subject, status, created_at").order("created_at", { ascending: false }).limit(6),
     db.from("deposit_requests").select("id", { count: "exact", head: true }).eq("status", "completed"),
+    db.from("payment_orders").select("id", { count: "exact", head: true }).eq("status", "paid"),
   ]);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-6xl space-y-6">
       <AdminPageHeader
-        title="Overview"
-        description={`Welcome back, ${ctx.email ?? "admin"}. Here's the pulse of Spinora.`}
+        title="Overview & Pulse"
+        description={`Welcome back, ${ctx.email ?? "Admin"}. Here's the live automated status of Spinora.`}
       />
 
+      {/* Primary Key Metric Cards with Non-Tech Explanations */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Total members"
+          label="Total Registered Players"
           value={stats.totalUsers.toLocaleString()}
           delta={stats.newUsersInWindow}
-          deltaLabel="today"
+          deltaLabel="new today"
           icon={<Users />}
           accent="cyan"
         />
         <StatCard
-          label="New this week"
+          label="New Signups This Week"
           value={(new7d.count ?? 0).toLocaleString()}
           icon={<TrendingUp />}
           accent="emerald"
         />
         <StatCard
-          label="Coins issued (24h)"
+          label="Reward Coins Claimed (24h)"
           value={stats.coinsIssuedInWindow.toLocaleString()}
           icon={<Coins />}
           accent="gold"
         />
         <StatCard
-          label="Active promotions"
+          label="Active Bonus Promos"
           value={(activePromos.count ?? 0).toLocaleString()}
           icon={<BadgePercent />}
           accent="purple"
         />
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Open tickets"
-          value={stats.openTickets.toLocaleString()}
-          icon={<LifeBuoy />}
+          label="AI Payment Verifications"
+          value={((paymentOrdersCount.count ?? 0) + (fulfilledRequests.count ?? 0)).toLocaleString()}
+          icon={<ShieldCheck />}
           accent="cyan"
         />
         <StatCard
-          label="Total referrals"
-          value={(pendingReferrals.count ?? 0).toLocaleString()}
-          icon={<UserPlus />}
+          label="Open Support Tickets"
+          value={stats.openTickets.toLocaleString()}
+          icon={<LifeBuoy />}
           accent="purple"
         />
         <StatCard
-          label="Pending requests"
+          label="Pending Review Items"
           value={stats.pendingRequests.toLocaleString()}
           icon={<Inbox />}
           accent="gold"
         />
         <StatCard
-          label="Completed deposits"
+          label="Completed Deposits"
           value={(fulfilledRequests.count ?? 0).toLocaleString()}
           icon={<CheckCircle2 />}
           accent="emerald"
@@ -117,111 +122,131 @@ export default async function AdminOverviewPage() {
       </div>
 
       {/* 🎮 Juwa 777 & Game Platform Bot Worker Control Card */}
-      <div className="mt-6">
+      <div>
         <AdminGameBotWorkerCard />
       </div>
 
       {/* Non-Coder Friendly Quick Action Command Center */}
-      <GlassCard className="mt-6 p-6">
+      <GlassCard className="p-6">
         <div className="flex items-center justify-between border-b border-border/50 pb-3 mb-4">
           <div>
-            <h2 className="text-lg font-bold text-foreground">✨ Non-Coder Quick Actions</h2>
-            <p className="text-xs text-muted-foreground">1-Click admin shortcuts to easily manage your site, AI tools, and telegram bot without code.</p>
+            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+              <Zap className="h-5 w-5 text-amber-400" />
+              1-Click Admin Quick Controls
+            </h2>
+            <p className="text-xs text-muted-foreground">Easy shortcuts to manage payments, AI tools, Telegram bot, and players without technical code.</p>
           </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-ws-green/15 text-ws-green-deep dark:text-ws-green">
-            Admin Helper
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+            Easy Admin View
           </span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Highlighted AI Payment Verification */}
           <Link
-            href="/admin/kyc"
-            className="flex items-center gap-3 p-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all group"
+            href="/admin/payment-verification"
+            className="flex items-center gap-3 p-3.5 rounded-xl border border-cyan-500/50 bg-cyan-500/15 hover:bg-cyan-500/25 transition-all group col-span-1 sm:col-span-2"
           >
-            <div className="flex size-10 items-center justify-center rounded-lg bg-emerald-500/30 text-emerald-300 group-hover:scale-110 transition-transform">
+            <div className="flex size-11 items-center justify-center rounded-lg bg-cyan-500/30 text-cyan-300 group-hover:scale-110 transition-transform font-bold text-xl">
               🛡️
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">KYC Review</p>
-              <p className="text-xs text-muted-foreground">Approve player IDs</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-foreground">AI Payment Verification & Telegram</p>
+                <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full font-bold">1-Click Control</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Verify screenshots, approve deposits & broadcast Telegram promos</p>
             </div>
           </Link>
 
           <Link
-            href="/admin/analytics"
-            className="flex items-center gap-3 p-3 rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 transition-all group"
-          >
-            <div className="flex size-10 items-center justify-center rounded-lg bg-purple-500/30 text-purple-300 group-hover:scale-110 transition-transform">
-              📊
-            </div>
-            <div>
-              <p className="text-sm font-bold text-foreground">Revenue Analytics</p>
-              <p className="text-xs text-muted-foreground">Live volume & reports</p>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/marketing"
+            href="/admin/deposits"
             className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 transition-all group"
           >
             <div className="flex size-10 items-center justify-center rounded-lg bg-amber-500/30 text-amber-300 group-hover:scale-110 transition-transform">
-              🎟️
+              💳
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">Marketing Hub</p>
-              <p className="text-xs text-muted-foreground">1-Click promo codes</p>
+              <p className="text-sm font-bold text-foreground">Deposit Requests</p>
+              <p className="text-xs text-muted-foreground">View & load player balance</p>
             </div>
           </Link>
 
           <Link
-            href="/admin/bot-status"
+            href="/admin/payouts"
             className="flex items-center gap-3 p-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all group"
           >
             <div className="flex size-10 items-center justify-center rounded-lg bg-emerald-500/30 text-emerald-300 group-hover:scale-110 transition-transform">
-              🤖
+              💵
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">8-Bot Control Room</p>
-              <p className="text-xs text-muted-foreground">24/7 worker status</p>
+              <p className="text-sm font-bold text-foreground">Cash-out Payouts</p>
+              <p className="text-xs text-muted-foreground">Fulfill player redeems</p>
             </div>
           </Link>
 
           <Link
-            href="/admin/ai-blog"
-            className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-background/50 hover:bg-ws-green/10 hover:border-ws-green/40 transition-all group"
+            href="/admin/users"
+            className="flex items-center gap-3 p-3 rounded-lg border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 transition-all group"
           >
-            <div className="flex size-10 items-center justify-center rounded-lg bg-ws-green/20 text-ws-green group-hover:scale-110 transition-transform">
-              ✨
+            <div className="flex size-10 items-center justify-center rounded-lg bg-indigo-500/30 text-indigo-300 group-hover:scale-110 transition-transform">
+              👥
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">AI Auto Blog</p>
-              <p className="text-xs text-muted-foreground">Generate SEO posts</p>
+              <p className="text-sm font-bold text-foreground">Users & Players</p>
+              <p className="text-xs text-muted-foreground">View levels & edit profiles</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/crm"
+            className="flex items-center gap-3 p-3 rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 transition-all group"
+          >
+            <div className="flex size-10 items-center justify-center rounded-lg bg-purple-500/30 text-purple-300 group-hover:scale-110 transition-transform">
+              👑
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground">CRM & VIP Players</p>
+              <p className="text-xs text-muted-foreground">VIP levels & segments</p>
             </div>
           </Link>
 
           <Link
             href="/admin/telegram"
-            className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-background/50 hover:bg-sky-500/10 hover:border-sky-500/40 transition-all group"
+            className="flex items-center gap-3 p-3 rounded-lg border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 transition-all group"
           >
-            <div className="flex size-10 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 group-hover:scale-110 transition-transform">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-sky-500/30 text-sky-300 group-hover:scale-110 transition-transform">
               🚀
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">Telegram Bot</p>
-              <p className="text-xs text-muted-foreground">Send broadcast</p>
+              <p className="text-sm font-bold text-foreground">Telegram Bot Autopilot</p>
+              <p className="text-xs text-muted-foreground">Bot status & broadcasts</p>
             </div>
           </Link>
 
           <Link
-            href="/admin/requests"
+            href="/admin/promotions"
             className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-background/50 hover:bg-amber-500/10 hover:border-amber-500/40 transition-all group"
           >
             <div className="flex size-10 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 group-hover:scale-110 transition-transform">
-              💳
+              🎟️
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">Deposit Requests</p>
-              <p className="text-xs text-muted-foreground">Fulfill user loads</p>
+              <p className="text-sm font-bold text-foreground">Bonus Promos</p>
+              <p className="text-xs text-muted-foreground">Manage promo codes</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/ai-blog"
+            className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-background/50 hover:bg-emerald-500/10 hover:border-emerald-500/40 transition-all group"
+          >
+            <div className="flex size-10 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
+              ✨
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground">AI Auto Blog</p>
+              <p className="text-xs text-muted-foreground">Generate news posts</p>
             </div>
           </Link>
 
@@ -234,20 +259,7 @@ export default async function AdminOverviewPage() {
             </div>
             <div>
               <p className="text-sm font-bold text-foreground">Manage Games</p>
-              <p className="text-xs text-muted-foreground">Add or update games</p>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/cms"
-            className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-background/50 hover:bg-indigo-500/10 hover:border-indigo-500/40 transition-all group"
-          >
-            <div className="flex size-10 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 group-hover:scale-110 transition-transform">
-              📝
-            </div>
-            <div>
-              <p className="text-sm font-bold text-foreground">CMS & FAQs</p>
-              <p className="text-xs text-muted-foreground">Banners & text</p>
+              <p className="text-xs text-muted-foreground">Catalog & platforms</p>
             </div>
           </Link>
 
@@ -266,13 +278,13 @@ export default async function AdminOverviewPage() {
         </div>
       </GlassCard>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <GlassCard className="p-6">
           <div className="flex items-center justify-between">
             <h2 className="font-bold">Newest members</h2>
             <Link
               href="/admin/users"
-              className="inline-flex items-center gap-1 text-xs font-medium text-ws-cyan underline-offset-4 hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-medium text-cyan-400 underline-offset-4 hover:underline"
             >
               All users
               <ArrowRight className="size-3.5" aria-hidden />
@@ -300,33 +312,33 @@ export default async function AdminOverviewPage() {
 
         <GlassCard className="p-6">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold">Latest tickets</h2>
+            <h2 className="font-bold">Latest support tickets</h2>
             <Link
-              href="/admin/support"
-              className="inline-flex items-center gap-1 text-xs font-medium text-ws-cyan underline-offset-4 hover:underline"
+              href="/admin/chat"
+              className="inline-flex items-center gap-1 text-xs font-medium text-cyan-400 underline-offset-4 hover:underline"
             >
-              Support inbox
+              Live Chat & Support
               <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           </div>
           <ul className="mt-4 divide-y divide-foreground/8">
             {(recentTickets.data ?? []).length === 0 ? (
               <li className="py-2.5 text-sm text-muted-foreground">
-                No tickets yet.
+                No open tickets. All player support chats clear!
               </li>
             ) : (
               (recentTickets.data ?? []).map((t) => (
                 <li key={t.id} className="flex items-center justify-between gap-3 py-2.5">
                   <Link
-                    href={`/admin/support/${t.id}`}
-                    className="min-w-0 flex-1 truncate text-sm font-medium hover:text-ws-green-deep dark:text-ws-green"
+                    href="/admin/chat"
+                    className="min-w-0 flex-1 truncate text-sm font-medium hover:text-emerald-400"
                   >
                     <span className="tnum text-xs text-muted-foreground">
                       #{t.ticket_no}
                     </span>{" "}
                     {t.subject}
                   </Link>
-                  <span className="shrink-0 text-xs text-muted-foreground uppercase">
+                  <span className="shrink-0 text-xs text-muted-foreground uppercase font-bold">
                     {t.status}
                   </span>
                 </li>

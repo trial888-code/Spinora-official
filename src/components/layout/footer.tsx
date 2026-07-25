@@ -36,7 +36,7 @@ interface FooterProps {
 export function Footer({ fullWidth = false }: FooterProps) {
   return (
     <footer
-      className={`border-t border-border bg-[#0d0d0d] mt-8 ${fullWidth ? "w-full" : ""}`}
+      className={`border-t border-purple-500/25 bg-[#050816] mt-8 ${fullWidth ? "w-full" : ""}`}
     >
       <div
         className={`mx-auto px-4 py-12 sm:px-6 lg:px-8 ${fullWidth ? "max-w-[1600px]" : "max-w-7xl"}`}

@@ -59,26 +59,6 @@ export const DEPOSIT_PAYMENT_METHODS: DepositPaymentMethod[] = [
     accent: "from-green-500/20 to-lime-600/10 border-green-500/30",
   },
   {
-    id: "bitcoin",
-    label: "Bitcoin",
-    username:
-      process.env.NEXT_PUBLIC_DEPOSIT_BITCOIN ||
-      "1L2GidwNBzXKcnrpdHYaVGpZSrhvQcSbKV",
-    copyLabel: "BTC address",
-    qrImage: depositQr("/payments/bitcoin-qr.png"),
-    accent: "from-orange-500/20 to-amber-600/10 border-orange-500/30",
-  },
-  {
-    id: "usdt",
-    label: "USDT",
-    username:
-      process.env.NEXT_PUBLIC_DEPOSIT_USDT ||
-      "0x3d3528b297f150e0749f10bd91dae18e4defca45",
-    copyLabel: "USDT address (ERC-20)",
-    qrImage: depositQr("/payments/usdt-qr.png"),
-    accent: "from-teal-500/20 to-cyan-600/10 border-teal-500/30",
-  },
-  {
     id: "venmo",
     label: "Venmo",
     username: process.env.NEXT_PUBLIC_DEPOSIT_VENMO || "@Anthony-Castro-414",

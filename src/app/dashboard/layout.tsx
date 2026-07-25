@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { LobbyAccountSidebar } from "@/components/home/lobby/lobby-account-sidebar";
 import { CompleteProfilePrompt } from "@/components/auth/complete-profile-prompt";
 import { WalletCardWithSync } from "@/components/wallet/wallet-card-with-sync";
 import { DashboardProfileProvider } from "@/lib/dashboard/dashboard-profile-context";
@@ -27,15 +26,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const email = profile?.email || user.email || "";
   const initialWallet = walletBalanceFromProfile(profile);
 
-  const sidebar = (
-    <LobbyAccountSidebar walletSlot={<WalletCardWithSync initial={initialWallet} />} />
-  );
-
   return (
     <DashboardProfileProvider userId={user.id} profile={profile}>
       <DashboardRoutePrefetch />
       <Suspense fallback={null}>
-        <DashboardShell sidebar={sidebar}>
+        <DashboardShell sidebarWalletSlot={<WalletCardWithSync initial={initialWallet} />}>
           {needsPhone && email && !email.endsWith("@phone.spinora.local") && (
             <CompleteProfilePrompt email={email} fullName={profile?.full_name} />
           )}

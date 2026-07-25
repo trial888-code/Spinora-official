@@ -211,7 +211,7 @@ export async function deleteCmsEntityAction(
 // ── Games ────────────────────────────────────────────────────────────────────
 
 const gameSchema = z.object({
-  name: z.string().trim().min(2).max(80),
+  name: z.string().trim().min(2).max(120),
   slug: z
     .string()
     .trim()
@@ -220,27 +220,30 @@ const gameSchema = z.object({
     .min(2)
     .max(60)
     .optional(),
-  description: z.string().trim().max(500).optional().default(""),
-  image_url: z.string().trim().max(500).optional().default(""),
-  play_url: z.string().trim().max(500).optional().default(""),
-  download_url: z.string().trim().max(500).optional().default(""),
-  badge_text: z.string().trim().max(20).optional().default(""),
+  description: z.string().trim().max(2000).optional().default(""),
+  image_url: z.string().trim().max(4000).optional().default(""),
+  play_url: z.string().trim().max(4000).optional().default(""),
+  download_url: z.string().trim().max(4000).optional().default(""),
+  badge_text: z.string().trim().max(40).optional().default(""),
   is_active: z.boolean(),
   is_featured: z.boolean(),
 });
 
 export async function upsertGameAction(
-  input: z.infer<typeof gameSchema> & { id: string }
+  input: z.infer<typeof gameSchema> & { id?: string }
 ): Promise<AdminActionResult> {
   const auth = await authorize(PERMISSION);
   if ("error" in auth) return { ok: false, error: auth.error };
 
   const parsed = gameSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid" };
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid form input" };
+
+  const generatedSlug = parsed.data.slug || parsed.data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
   const patch = {
     name: parsed.data.name,
-    ...(parsed.data.slug ? { slug: parsed.data.slug } : {}),
+    slug: generatedSlug,
+    category_id: "00000000-0000-0000-0000-000000000001",
     description: parsed.data.description || "",
     image_url: parsed.data.image_url || null,
     play_url: parsed.data.play_url || null,
@@ -251,21 +254,43 @@ export async function upsertGameAction(
   };
 
   const db = adminDb();
-  const { error } = await db.from("games").update(patch).eq("id", input.id);
-  if (error) return { ok: false, error: "Could not save the game." };
+  
+  // Try upserting full patch
+  let { error } = await db.from("games").upsert(patch, { onConflict: "slug" });
+
+  // If column play_url or download_url is missing in schema, fallback to basic patch
+  if (error && error.message.includes("column")) {
+    const basicPatch = {
+      name: parsed.data.name,
+      slug: generatedSlug,
+      category_id: "00000000-0000-0000-0000-000000000001",
+      description: parsed.data.description || "",
+      image_url: parsed.data.image_url || null,
+      badge_text: parsed.data.badge_text || null,
+      is_active: parsed.data.is_active,
+      is_featured: parsed.data.is_featured,
+    };
+    const retry = await db.from("games").upsert(basicPatch, { onConflict: "slug" });
+    error = retry.error;
+  }
+
+  if (error) {
+    console.error("Game Upsert Error:", error);
+    return { ok: false, error: `Could not save game: ${error.message}` };
+  }
 
   await writeAudit({
     actorId: auth.staff.userId,
-    action: "game.update",
+    action: input.id ? "game.update" : "game.create",
     entityType: "game",
-    entityId: input.id,
+    entityId: generatedSlug,
     after: patch,
   });
 
   revalidatePath("/admin/games");
   revalidatePath("/games");
   revalidatePath("/");
-  return { ok: true, message: "Game saved." };
+  return { ok: true, message: "✅ Game saved successfully!" };
 }
 
 // ── Blog posts ───────────────────────────────────────────────────────────────

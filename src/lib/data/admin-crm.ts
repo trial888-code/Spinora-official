@@ -128,16 +128,12 @@ export async function getCrmPlayersPage(
 
   let profileQuery = db
     .from("profiles")
-    .select(
-      segment === "vip"
-        ? `${ADMIN_PROFILE_SELECT}, vip_status!inner(user_id)`
-        : ADMIN_PROFILE_SELECT,
-      { count: "exact" }
-    )
+    .select(ADMIN_PROFILE_SELECT, { count: "exact" })
     .order("created_at", { ascending: false });
 
   if (segment === "new") profileQuery = profileQuery.gte("created_at", since);
   else if (segment === "active") profileQuery = profileQuery.gte("last_seen_at", since);
+  else if (segment === "vip") profileQuery = profileQuery.gt("vip_points", 0);
   else if (segment === "banned") profileQuery = profileQuery.eq("is_suspended", true);
 
   const { data: profilesRaw, count: segmentCount } = await profileQuery.range(from, to);
@@ -146,25 +142,22 @@ export async function getCrmPlayersPage(
   const totalPages = Math.max(1, Math.ceil(total / CRM_PAGE_SIZE));
   const profileIds = profiles.map((p) => p.id!).filter(Boolean);
 
-  const [depositMap, vipResult] = await Promise.all([
-    depositStatsForUsers(profileIds),
-    profileIds.length
-      ? db.from("vip_status").select("user_id, vip_tiers(name, color)").in("user_id", profileIds)
-      : Promise.resolve({ data: [] }),
-  ]);
-
-  type VipRow = { user_id: string; vip_tiers: { name: string; color: string } | null };
-  const vipByUser = new Map<string, { name: string; color: string }>();
-  for (const v of (vipResult.data ?? []) as unknown as VipRow[]) {
-    if (v.vip_tiers) vipByUser.set(v.user_id, v.vip_tiers);
-  }
+  const depositMap = await depositStatsForUsers(profileIds);
 
   const rows: CrmPlayerRow[] = profiles.map((profile) => {
     const id = profile.id!;
     const deposits = depositMap.get(id);
+    const points = Number(profile.vip_points ?? 0);
+
+    let vipInfo: { name: string; color: string } | null = null;
+    if (points >= 5000) vipInfo = { name: "Platinum", color: "from-purple-400 to-cyan-400" };
+    else if (points >= 2000) vipInfo = { name: "Gold", color: "from-yellow-500 to-amber-400" };
+    else if (points >= 500) vipInfo = { name: "Silver", color: "from-slate-400 to-slate-300" };
+    else if (points > 0) vipInfo = { name: "Bronze", color: "from-amber-700 to-amber-500" };
+
     return {
       profile,
-      vip: vipByUser.get(id) ?? null,
+      vip: vipInfo,
       deposits: deposits
         ? {
             fulfilledCount: deposits.fulfilledCount,

@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Ban, Search } from "lucide-react";
 
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { UserActions } from "@/components/admin/user-actions";
 import { GlassCard } from "@/components/shared/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import {
 import { adminDb } from "@/lib/actions/admin/core";
 import {
   ADMIN_PROFILE_SELECT,
+  type SpinoraProfileRow,
   profileDisplayName,
   profileHandle,
   profileIsBanned,
@@ -27,7 +29,7 @@ import {
 import { requirePermission } from "@/lib/data/admin";
 import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Users" };
+export const metadata: Metadata = { title: "Users & Profiles Management" };
 
 const PAGE_SIZE = 20;
 
@@ -54,18 +56,18 @@ export default async function AdminUsersPage({
     .order("created_at", { ascending: false })
     .range(from, to);
 
-  const users = data ?? [];
+  const users = (data ?? []) as unknown as SpinoraProfileRow[];
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-6xl space-y-6">
       <AdminPageHeader
-        title="Users"
-        description={`${total.toLocaleString()} members registered.`}
+        title="Users & Members"
+        description={`${total.toLocaleString()} members registered. 1-Click Ban, Role assignment, and Account Deletion controls.`}
       />
 
-      <form className="mb-4 flex gap-2" action="/admin/users">
+      <form className="flex gap-2" action="/admin/users">
         <div className="relative flex-1">
           <Search
             className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -74,76 +76,89 @@ export default async function AdminUsersPage({
           <Input
             name="q"
             defaultValue={q}
-            placeholder="Search by email or name…"
+            placeholder="Search member by email or name..."
             className="pl-9"
             aria-label="Search users"
           />
         </div>
-        <Button type="submit" variant="outline">
+        <Button type="submit" variant="outline" className="font-bold">
           Search
         </Button>
       </form>
 
-      <GlassCard className="overflow-hidden">
+      <GlassCard className="overflow-hidden p-0">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="border-foreground/8 hover:bg-transparent">
+              <TableRow className="border-border/50 hover:bg-transparent">
                 <TableHead>Member</TableHead>
                 <TableHead className="text-right">Level</TableHead>
-                <TableHead className="text-right">Coins</TableHead>
                 <TableHead className="text-right">Wallet</TableHead>
-                <TableHead className="text-right">Cash-out</TableHead>
                 <TableHead className="text-right">Joined</TableHead>
-                <TableHead className="text-right">Status</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="w-56 text-right pr-4">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    No members match “{q}”.
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    No members match "{q}".
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((u) => (
-                  <TableRow key={u.id} className="border-foreground/8">
-                    <TableCell>
-                      <Link
-                        href={`/admin/users/${u.id}`}
-                        className="font-medium hover:text-ws-green-deep dark:text-ws-green"
-                      >
-                        {profileDisplayName(u)}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">{profileHandle(u)}</p>
-                    </TableCell>
-                    <TableCell className="tnum text-right">{profileNum(u.level, 1)}</TableCell>
-                    <TableCell className="tnum text-right text-ws-green-deep dark:text-ws-green">
-                      {profileNum(u.coins_balance).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="tnum text-right font-semibold text-ws-gold-deep dark:text-ws-gold">
-                      ${profileNum(u.wallet_balance).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="tnum text-right font-semibold text-ws-emerald">
-                      ${profileNum(u.cashout_wallet).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="tnum text-right text-muted-foreground">
-                      {u.created_at ? format(new Date(u.created_at), "MMM d, yyyy") : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {profileIsBanned(u) ? (
-                        <Badge className="bg-ws-danger/15 text-ws-danger">
-                          <Ban className="size-3" aria-hidden />
-                          Suspended
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-ws-emerald/15 text-ws-emerald">
-                          Active
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
+                users.map((u) => {
+                  const banned = profileIsBanned(u);
+                  const roleStr: string = String(u.role ?? "customer").toLowerCase();
+
+                  return (
+                    <TableRow key={u.id || "user"} className="border-border/40 hover:bg-white/5 transition-colors">
+                      <TableCell>
+                        <Link
+                          href={`/admin/users/${u.id}`}
+                          className="font-bold text-foreground hover:text-cyan-400"
+                        >
+                          {profileDisplayName(u)}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">{profileHandle(u)}</p>
+                      </TableCell>
+                      <TableCell className="tnum text-right font-bold text-amber-400">
+                        Lv. {Math.max(1, Math.floor(profileNum(u.vip_points) / 500) + 1)}
+                      </TableCell>
+                      <TableCell className="tnum text-right font-bold text-emerald-400">
+                        ${profileNum(u.wallet_balance).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="tnum text-right text-xs text-muted-foreground">
+                        {u.created_at ? format(new Date(u.created_at), "MMM d, yyyy") : "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {banned ? (
+                          <Badge className="bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[10px]">
+                            <Ban className="size-3 mr-1" aria-hidden />
+                            Banned
+                          </Badge>
+                        ) : roleStr === "admin" ? (
+                          <Badge className="bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 text-[10px]">
+                            Admin
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px]">
+                            Active
+                          </Badge>
+                        )}
+                      </TableCell>
+
+                      {/* 1-Click Ban, Role, and Delete Actions */}
+                      <TableCell className="text-right pr-4">
+                        <UserActions
+                          userId={u.id || ""}
+                          role={roleStr}
+                          isSuspended={banned}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -151,7 +166,7 @@ export default async function AdminUsersPage({
       </GlassCard>
 
       {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <Button
             asChild
             variant="outline"

@@ -456,6 +456,28 @@ CREATE POLICY "Admins read rate_limits"
   ON public.rate_limits FOR SELECT TO authenticated
   USING (public.is_admin());
 
+-- Grants for service_role and authenticated
+GRANT ALL ON TABLE public.fraud_scores TO service_role;
+GRANT ALL ON TABLE public.fraud_scores TO authenticated;
+GRANT ALL ON TABLE public.ip_logs TO service_role;
+GRANT ALL ON TABLE public.ip_logs TO authenticated;
+GRANT ALL ON TABLE public.device_map TO service_role;
+GRANT ALL ON TABLE public.device_map TO authenticated;
+GRANT ALL ON TABLE public.rate_limits TO service_role;
+GRANT ALL ON TABLE public.rate_limits TO authenticated;
+
+DROP POLICY IF EXISTS "Service role full access fraud_scores" ON public.fraud_scores;
+CREATE POLICY "Service role full access fraud_scores" ON public.fraud_scores FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role full access ip_logs" ON public.ip_logs;
+CREATE POLICY "Service role full access ip_logs" ON public.ip_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role full access device_map" ON public.device_map;
+CREATE POLICY "Service role full access device_map" ON public.device_map FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role full access rate_limits" ON public.rate_limits;
+CREATE POLICY "Service role full access rate_limits" ON public.rate_limits FOR ALL TO service_role USING (true) WITH CHECK (true);
+
 GRANT EXECUTE ON FUNCTION public.check_signup_allowed TO service_role;
 GRANT EXECUTE ON FUNCTION public.link_user_signup TO service_role;
 GRANT EXECUTE ON FUNCTION public.assert_freeplay_allowed TO service_role;

@@ -56,8 +56,12 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     <>
       <Provider>{children}</Provider>
       <Toaster richColors closeButton position="top-center" />
-      <LiveWinPopup />
-      <WelcomePromoModal />
+      {!pathname?.startsWith("/admin") && (
+        <>
+          <LiveWinPopup />
+          <WelcomePromoModal />
+        </>
+      )}
     </>
   );
 }

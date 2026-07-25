@@ -26,6 +26,8 @@ interface AppShellProps {
   onSearchClick?: () => void;
   showFooter?: boolean;
   showTicker?: boolean;
+  /** Full-width cosmic public landing (no sidebar) */
+  cosmicLanding?: boolean;
 }
 
 export function AppShell({
@@ -34,6 +36,7 @@ export function AppShell({
   onSearchClick,
   showFooter = true,
   showTicker = true,
+  cosmicLanding = false,
 }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -63,15 +66,22 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-screen bg-[#121212] text-foreground">
+    <div
+      className={
+        cosmicLanding
+          ? "min-h-screen cosmic-public-page text-foreground"
+          : "min-h-screen bg-[#121212] text-foreground"
+      }
+    >
       <Navbar
-        onMenuClick={() => setMobileOpen(true)}
+        onMenuClick={cosmicLanding ? undefined : () => setMobileOpen(true)}
         onSearchClick={onSearchClick}
+        variant={cosmicLanding ? "cosmic" : "default"}
       />
       <div className="pt-16">
         {showTicker && <MarqueeTicker />}
 
-      {mobileOpen && (
+      {!cosmicLanding && mobileOpen && (
         <>
           <div
             className="lg:hidden fixed inset-0 z-40 bg-black/70 mobile-drawer-backdrop"
@@ -107,11 +117,13 @@ export function AppShell({
         </>
       )}
 
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
-        <div className="flex gap-4 lg:gap-6 items-start">
-          <div className="hidden lg:block w-64 xl:w-72 shrink-0 sticky top-20 self-start max-h-[calc(100vh-5rem)] overflow-y-auto scrollbar-hide">
-            {sidebar}
-          </div>
+      <div className={cn("mx-auto px-4 sm:px-6 py-6", cosmicLanding ? "max-w-7xl" : "max-w-[1600px]")}>
+        <div className={cn("flex items-start", cosmicLanding ? "" : "gap-4 lg:gap-6")}>
+          {!cosmicLanding && (
+            <div className="hidden lg:block w-64 xl:w-72 shrink-0 sticky top-20 self-start max-h-[calc(100vh-5rem)] overflow-y-auto scrollbar-hide">
+              {sidebar}
+            </div>
+          )}
           <main className="flex-1 min-w-0 pb-8">{children}</main>
         </div>
       </div>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import type { AdminTransactionRow } from "@/lib/actions/wallet";
 import {
   getAdminUserTransactions,
+  getAdminAllTransactions,
   searchAdminTransactionUsers,
   type AdminTransactionUser,
 } from "@/lib/actions/wallet";
@@ -42,6 +43,11 @@ function TransactionEntry({ row, compact }: { row: AdminTransactionRow; compact?
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5 mb-1">
+            {row.user && (
+              <Badge className="bg-cyan-500/20 text-cyan-300 font-bold text-[10px] border border-cyan-500/30">
+                👤 {row.user.full_name || row.user.email}
+              </Badge>
+            )}
             <Badge variant="outline" className="text-[10px]">
               {transactionSourceLabel(row.source)}
             </Badge>
@@ -120,7 +126,7 @@ export function AdminUserTransactionHub({
   lazy = false,
 }: AdminUserTransactionHubProps) {
   const [userQuery, setUserQuery] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>("ALL");
   const [users, setUsers] = useState<AdminTransactionUser[]>(initialUsers);
   const [transactions, setTransactions] = useState<AdminTransactionRow[]>(initialTransactions);
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -142,20 +148,27 @@ export function AdminUserTransactionHub({
   }, [lazy, debouncedQuery]);
 
   useEffect(() => {
-    if (!lazy || !selectedUserId) return;
+    if (!lazy) return;
     startTxLoad(async () => {
-      const result = await getAdminUserTransactions(selectedUserId);
-      if ("transactions" in result) setTransactions(result.transactions);
+      if (selectedUserId === "ALL" || !selectedUserId) {
+        const result = await getAdminAllTransactions();
+        if ("transactions" in result) setTransactions(result.transactions);
+      } else {
+        const result = await getAdminUserTransactions(selectedUserId);
+        if ("transactions" in result) setTransactions(result.transactions);
+      }
     });
   }, [lazy, selectedUserId]);
 
-  const selectedUser = useMemo(
-    () => users.find((u) => u.id === selectedUserId) ?? null,
-    [users, selectedUserId]
-  );
+  const selectedUser = useMemo(() => {
+    if (selectedUserId === "ALL") {
+      return { id: "ALL", full_name: "Master Feed (All Users)", email: "all-users-combined" };
+    }
+    return users.find((u) => u.id === selectedUserId) ?? null;
+  }, [users, selectedUserId]);
 
   useEffect(() => {
-    if (!live || !selectedUserId) return;
+    if (!live) return;
 
     const supabase = createClient();
     if (!supabase) return;
@@ -225,7 +238,9 @@ export function AdminUserTransactionHub({
 
   const userTransactions = useMemo(() => {
     if (!selectedUserId) return { deposit: [], bonus: [] };
-    const mine = transactions.filter((t) => t.user?.id === selectedUserId);
+    const mine = selectedUserId === "ALL" 
+      ? transactions 
+      : transactions.filter((t) => t.user?.id === selectedUserId);
     return {
       deposit: mine.filter((t) => categorizeAdminTransactionPanel(t) === "deposit"),
       bonus: mine.filter((t) => categorizeAdminTransactionPanel(t) === "bonus"),
@@ -235,21 +250,50 @@ export function AdminUserTransactionHub({
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <div className="relative max-w-lg">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            value={userQuery}
-            onChange={(e) => setUserQuery(e.target.value)}
-            placeholder="Search user by name or email…"
-            className="pl-9"
-          />
-          {(searchPending || txPending) && (
-            <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-          )}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative max-w-lg flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={userQuery}
+              onChange={(e) => setUserQuery(e.target.value)}
+              placeholder="Search user by name or email…"
+              className="pl-9"
+            />
+            {(searchPending || txPending) && (
+              <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+          </div>
+
+          <Button
+            type="button"
+            variant={selectedUserId === "ALL" ? "default" : "outline"}
+            className={cn(
+              "font-bold text-xs uppercase tracking-wider gap-2",
+              selectedUserId === "ALL" && "bg-cyan-500 text-black hover:bg-cyan-400"
+            )}
+            onClick={() => {
+              setSelectedUserId("ALL");
+            }}
+          >
+            <Radio className="size-4" /> 🌐 All Users Master Feed
+          </Button>
         </div>
 
         {!selectedUser && (
           <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-auto py-2 px-3 text-left flex items-center gap-2 border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20"
+              onClick={() => setSelectedUserId("ALL")}
+            >
+              <Radio className="size-4 text-cyan-400" />
+              <div>
+                <p className="font-bold text-xs">🌐 All Users Master Feed</p>
+                <p className="text-[10px] text-cyan-400/80">View combined ledger across all players</p>
+              </div>
+            </Button>
             {matchingUsers.map((u) => (
               <Button
                 key={u.id}

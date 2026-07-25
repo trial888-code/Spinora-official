@@ -3,12 +3,9 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
-import { LobbyAppShell } from "@/components/home/lobby/lobby-app-shell";
-import { LobbySidebar, type LobbyMenuId } from "@/components/home/lobby/lobby-sidebar";
+import { AppLayout } from "@/components/layout/app-layout";
+import { CosmicUiScope } from "@/components/layout/cosmic-ui-scope";
 import { useLobbyProfile } from "@/components/home/lobby/use-lobby-profile";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 const AUTH_PREFIXES = ["/login", "/register", "/reset-password"];
 const SKIP_VIP_SHELL_PREFIXES = ["/", "/dashboard", "/admin"];
@@ -25,23 +22,17 @@ function isAuthRoute(pathname: string) {
 
 interface VipPageLayoutProps {
   children: ReactNode;
-  /** Extra class on main content when inside VIP shell */
   contentClassName?: string;
 }
 
-/**
- * Wraps public/marketing pages: logged-out users get Navbar + Footer;
- * logged-in users get the full VIP casino shell (same as lobby/dashboard).
- */
+/** Public pages: cosmic landing chrome. Logged-in: Cosmic AppLayout (mockup shell). */
 export function VipPageLayout({ children, contentClassName }: VipPageLayoutProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { isLoggedIn, ready } = useLobbyProfile();
-  const [lobbyMenu, setLobbyMenu] = useState<LobbyMenuId>("lobby");
 
   if (!ready) {
     return (
-      <div className="lobby-cosmic min-h-screen flex items-center justify-center">
+      <div className="cosmic-app-shell min-h-screen flex items-center justify-center">
         <div className="w-10 h-10 rounded-full border-2 border-purple-600 border-t-amber-400 animate-spin" aria-label="Loading" />
       </div>
     );
@@ -49,32 +40,20 @@ export function VipPageLayout({ children, contentClassName }: VipPageLayoutProps
 
   if (!isLoggedIn || isAuthRoute(pathname) || shouldSkipVipShell(pathname)) {
     return (
-      <>
-        <Navbar />
-        <div className="pt-16 min-h-screen bg-background">{children}</div>
-        <Footer fullWidth />
-      </>
+      <div className="min-h-screen cosmic-nebula-page text-foreground">
+        <CosmicUiScope />
+        <Navbar variant="cosmic" />
+        <main className="pt-16 max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+          <div className={contentClassName}>{children}</div>
+        </main>
+      </div>
     );
   }
 
-  function handleLobbyMenu(menu: LobbyMenuId) {
-    setLobbyMenu(menu);
-    if (menu === "lobby") router.push("/");
-    else if (menu === "promotions") router.push("/promotions");
-    else if (menu === "vip") router.push("/dashboard/vip");
-    else if (menu === "leaderboard") router.push("/leaderboard");
-    else if (menu === "support") router.push("/dashboard/messages");
-    else router.push("/#games");
-  }
-
   return (
-    <LobbyAppShell
-      sidebar={<LobbySidebar activeMenu={lobbyMenu} onMenuChange={handleLobbyMenu} />}
-    >
-      <div className={contentClassName ?? "vip-page-content mx-auto max-w-6xl py-2 px-1 sm:px-2"}>
-        {children}
-      </div>
-    </LobbyAppShell>
+    <AppLayout>
+      <div className={contentClassName ?? "vip-page-content"}>{children}</div>
+    </AppLayout>
   );
 }
 

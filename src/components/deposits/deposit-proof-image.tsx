@@ -47,10 +47,16 @@ export function DepositProofImage({
   }, [path]);
 
   if (!src) {
+    const cleanPath = path.startsWith("chat-attachments/") ? path.replace("chat-attachments/", "") : path;
+    const fallbackUrl = `https://muetgtzcbecsqigtpfyn.supabase.co/storage/v1/object/public/chat-attachments/${cleanPath}`;
+
     return (
-      <div
-        className={`h-40 w-full max-w-sm rounded-lg bg-white/5 animate-pulse border border-white/10 ${className ?? ""}`}
-      />
+      <a href={fallbackUrl} target="_blank" rel="noopener noreferrer" className={`block max-w-sm ${className ?? ""}`}>
+        <div className="h-32 w-full rounded-lg bg-white/5 border border-white/10 hover:border-amber-400/50 flex flex-col items-center justify-center p-3 text-center transition-colors">
+          <span className="text-xs font-bold text-amber-300">📷 View Screenshot Proof</span>
+          <span className="text-[10px] text-purple-300/70 mt-1">Click to open full payment attachment</span>
+        </div>
+      </a>
     );
   }
 

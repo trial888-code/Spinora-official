@@ -8,8 +8,11 @@ export type SpinoraProfileRow = {
   xp?: number | null;
   level?: number | null;
   coins_balance?: number | null;
+  bonus_wallet?: number | null;
+  bonus_redeem_wallet?: number | null;
   wallet_balance?: number | null;
   cashout_wallet?: number | null;
+  kyc_status?: string | null;
   is_suspended?: boolean | null;
   created_at?: string;
   last_seen_at?: string | null;
@@ -22,7 +25,7 @@ export type SpinoraProfileRow = {
 
 /** Columns safe to select from Spinora profiles in admin queries. */
 export const ADMIN_PROFILE_SELECT =
-  "id, email, full_name, avatar_url, xp, level, coins_balance, wallet_balance, cashout_wallet, is_suspended, created_at, last_seen_at, referral_code, vip_points, vip_tier, current_streak, role";
+  "id, email, full_name, avatar_url, wallet_balance, cashout_wallet, kyc_status, created_at, referral_code, role";
 
 export const ADMIN_PROFILE_EMBED = "email, full_name";
 

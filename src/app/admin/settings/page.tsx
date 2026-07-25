@@ -11,6 +11,8 @@ import { adminDb } from "@/lib/actions/admin/core";
 import { requirePermission } from "@/lib/data/admin";
 import type { Json } from "@/lib/database.types";
 
+import { AdminCashierPaymentSettingsCard } from "@/components/admin/admin-cashier-payment-settings-card";
+
 export const metadata: Metadata = { title: "Settings & Payments Config" };
 
 export default async function AdminSettingsPage() {
@@ -25,9 +27,12 @@ export default async function AdminSettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <AdminPageHeader
-        title="Settings & NOWPayments Config"
+        title="Settings & Payments Config"
         description="Platform-wide configuration and 1-click payment credentials management."
       />
+
+      {/* 1-Click Cashier Payment Handles Card */}
+      <AdminCashierPaymentSettingsCard />
 
       {/* 1-Click NOWPayments Config Card */}
       <AdminNowpaymentsConfigCard />

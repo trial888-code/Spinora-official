@@ -18,7 +18,7 @@ const inter = Inter({
 export const metadata: Metadata = homeMetadata;
 
 export const viewport: Viewport = {
-  themeColor: "#0B0E14",
+  themeColor: "#0a0418",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -38,9 +38,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className} suppressHydrationWarning>
         <ClientProviders>
           {children}
-          <RecentWinnersTicker />
-          <LiveCasinoChatWidget />
-          <MobileBottomNav />
+          <div data-global-chrome>
+            <RecentWinnersTicker />
+            <LiveCasinoChatWidget />
+            <MobileBottomNav />
+          </div>
         </ClientProviders>
       </body>
     </html>

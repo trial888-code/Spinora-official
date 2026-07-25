@@ -128,11 +128,14 @@ export function GameDepositSection({ game, hideSectionAnchor }: GameDepositSecti
   return (
     <section
       id={hideSectionAnchor ? undefined : "deposit"}
-      className="rounded-2xl border border-white/10 bg-[#1a1a1a] p-4 sm:p-5 scroll-mt-24"
+      className="cosmic-glass-card cosmic-glass-card-glow rounded-2xl border border-amber-500/30 p-4 sm:p-5 scroll-mt-24 shadow-[0_0_30px_rgba(251,191,36,0.08)]"
     >
-      <div className="flex items-center gap-2 mb-4">
-        <Banknote className="h-5 w-5 text-emerald-400" />
-        <h2 className="font-bold text-white">Deposit</h2>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Banknote className="h-5 w-5 text-amber-400" />
+        <h2 className="font-black text-white">Crypto Cashier</h2>
+        <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+          Automated IPN
+        </span>
       </div>
 
       <p className="text-xs text-muted-foreground mb-4">
@@ -152,8 +155,8 @@ export function GameDepositSection({ game, hideSectionAnchor }: GameDepositSecti
             className={cn(
               "rounded-full px-3.5 py-1.5 text-xs font-semibold border transition-colors",
               selectedMethod === m.id
-                ? "bg-orange-500/20 border-orange-500/50 text-orange-300"
-                : "bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:border-white/20"
+                ? "bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.2)]"
+                : "bg-purple-950/50 border-purple-500/25 text-purple-200/70 hover:text-white hover:border-purple-400/40"
             )}
           >
             {m.label}
@@ -273,7 +276,7 @@ export function GameDepositSection({ game, hideSectionAnchor }: GameDepositSecti
           type="button"
           onClick={handleSubmit}
           disabled={submitting || !proofFile}
-          className="w-full flex items-center justify-center gap-2 rounded-xl py-4 px-6 text-base font-bold text-black bg-gradient-to-r from-emerald-400 to-teal-500 hover:opacity-95 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 rounded-xl py-4 px-6 text-base font-bold cosmic-gold-btn disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? (
             <Loader2 className="h-5 w-5 animate-spin" />

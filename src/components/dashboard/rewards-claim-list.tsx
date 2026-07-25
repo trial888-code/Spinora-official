@@ -23,7 +23,10 @@ export function RewardsClaimList({
     startTransition(async () => {
       const result = await claimRewardAction(key);
       if (result.ok) {
-        toast.success("Reward claimed!");
+        toast.success(`🎉 Reward claimed! +${result.coins} Coins & +${result.xp} XP added to your account.`);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("wallet:refresh"));
+        }
       } else {
         toast.error(result.error ?? "Could not claim reward.");
       }

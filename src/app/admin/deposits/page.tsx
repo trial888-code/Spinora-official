@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DepositActions } from "@/components/admin/deposit-actions";
@@ -32,8 +33,9 @@ export default async function AdminDepositsPage({
   const { status } = await searchParams;
   const activeFilter = status ?? "all";
   const supabase = await createClient();
+  const db = createAdminClient() ?? supabase;
 
-  let query = supabase
+  let query = db
     .from("deposit_requests")
     .select("*, user:profiles!deposit_requests_user_id_fkey(full_name, email)")
     .order("created_at", { ascending: false })
@@ -45,14 +47,35 @@ export default async function AdminDepositsPage({
 
   const { data: deposits } = await query;
 
+  const pendingCount = deposits?.filter(d => d.status === "pending").length ?? 0;
+  const completedSum = deposits?.filter(d => d.status === "completed").reduce((acc, d) => acc + (d.amount || 0), 0) ?? 0;
+
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-7xl space-y-6">
       <DepositsLiveRefresh />
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold">Deposit Requests</h1>
-        <p className="text-muted-foreground text-sm sm:text-base">
-          Review payment screenshots and confirm deposits — confirming credits the user&apos;s Total Deposit wallet
-        </p>
+
+      {/* 🚨 Non-Tech Admin Operations Live Attention Bar */}
+      <div className="rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-600/10 to-purple-950/40 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 shadow-[0_0_30px_rgba(251,191,36,0.15)]">
+        <div>
+          <span className="inline-block px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-400/30 mb-1">
+            ⚡ Admin Operations Center
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-black text-white">Deposit Requests Cashier</h1>
+          <p className="text-xs text-amber-200/80">
+            Review screenshots and tap 1-Click Confirm &amp; Credit to update user balances in 1 second.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="rounded-xl border border-amber-500/30 bg-black/50 px-4 py-2 text-center min-w-[120px]">
+            <span className="text-[10px] font-bold text-amber-300 uppercase block">Pending Orders</span>
+            <span className="text-xl font-black text-white">{pendingCount}</span>
+          </div>
+          <div className="rounded-xl border border-emerald-500/30 bg-black/50 px-4 py-2 text-center min-w-[120px]">
+            <span className="text-[10px] font-bold text-emerald-400 uppercase block">Total Processed</span>
+            <span className="text-xl font-black text-emerald-300">${completedSum.toFixed(2)}</span>
+          </div>
+        </div>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">

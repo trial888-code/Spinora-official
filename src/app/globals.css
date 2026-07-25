@@ -1,24 +1,37 @@
 @import "tailwindcss";
 
+/* ── Cosmic Arcade Glow Design Tokens ── */
+:root {
+  --bg-cosmic-dark: #0a0418;
+  --bg-cosmic-purple: #1a0836;
+  --bg-card-glass: rgba(22, 10, 42, 0.75);
+  --neon-gold: #fbbf24;
+  --neon-emerald: #10b981;
+  --neon-cyan: #06b6d4;
+  --neon-magenta: #d946ef;
+  --shadow-gold-glow: 0 0 25px rgba(251, 191, 36, 0.45);
+  --shadow-emerald-glow: 0 0 20px rgba(16, 185, 129, 0.35);
+}
+
 @theme {
-  --color-background: #0b0e14;
-  --color-foreground: #f1f5f9;
-  --color-card: #12161f;
-  --color-card-foreground: #f1f5f9;
-  --color-primary: #10b981;
-  --color-primary-foreground: #022c22;
-  --color-secondary: #161b26;
-  --color-secondary-foreground: #e2e8f0;
-  --color-muted: #161b26;
-  --color-muted-foreground: #94a3b8;
-  --color-accent: #f59e0b;
+  --color-background: #0a0418;
+  --color-foreground: #f5f3ff;
+  --color-card: #14082c;
+  --color-card-foreground: #f5f3ff;
+  --color-primary: #d946ef;
+  --color-primary-foreground: #fdf4ff;
+  --color-secondary: #1a0836;
+  --color-secondary-foreground: #e9d5ff;
+  --color-muted: #1a0836;
+  --color-muted-foreground: #a78bfa;
+  --color-accent: #fbbf24;
   --color-accent-foreground: #1a0a00;
   --color-destructive: #ef4444;
-  --color-border: rgba(16, 185, 129, 0.18);
-  --color-ring: #10b981;
+  --color-border: rgba(168, 85, 247, 0.25);
+  --color-ring: #d946ef;
   --color-hub-emerald: #10b981;
-  --color-hub-gold: #f59e0b;
-  --color-hub-obsidian: #0b0e14;
+  --color-hub-gold: #fbbf24;
+  --color-hub-obsidian: #0a0418;
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
@@ -30,38 +43,271 @@
 }
 
 body {
-  background-color: var(--color-background);
+  background-color: var(--bg-cosmic-dark);
   color: var(--color-foreground);
   font-family: "Inter", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(16, 185, 129, 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(245, 158, 11, 0.04), transparent);
+    radial-gradient(ellipse 90% 60% at 50% -15%, rgba(124, 58, 237, 0.35), transparent 55%),
+    radial-gradient(ellipse 55% 45% at 100% 40%, rgba(6, 182, 212, 0.12), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 0% 75%, rgba(217, 70, 239, 0.14), transparent 48%),
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 280px 280px, 320px 320px;
 }
 
-/* Enterprise hub — frosted glass + neon emerald accents */
+/* Enterprise hub — Cosmic Arcade Glow glass cards */
 .hub-glass {
-  background: rgba(18, 22, 31, 0.72);
+  background: var(--bg-card-glass);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(16, 185, 129, 0.12);
+  border: 1px solid var(--border-glass);
 }
 
-.hub-card {
-  background: linear-gradient(145deg, rgba(18, 22, 31, 0.95) 0%, rgba(11, 14, 20, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+.hub-card,
+.cosmic-glass-card {
+  @apply rounded-2xl border border-purple-500/25 bg-[#14082c]/80 backdrop-blur-md shadow-[0_0_20px_rgba(147,51,234,0.15)];
 }
 
-.hub-card-glow {
-  border-color: rgba(16, 185, 129, 0.2);
+.cosmic-glass-card-glow {
+  border-color: rgba(168, 85, 247, 0.4);
   box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(16, 185, 129, 0.06);
+    0 0 28px rgba(147, 51, 234, 0.22),
+    0 0 48px rgba(6, 182, 212, 0.08),
+    inset 0 1px 0 rgba(216, 180, 254, 0.06);
 }
 
-.hub-gradient-text {
-  background: linear-gradient(135deg, #10b981, #34d399, #f59e0b);
+.cosmic-gold-btn {
+  @apply bg-gradient-to-r from-amber-300 via-amber-400 to-amber-600 text-amber-950 font-black rounded-2xl shadow-[0_0_25px_rgba(251,191,36,0.5)] border border-amber-200/80 hover:brightness-110 transition-all;
+}
+
+.cosmic-dual-wallet-bar {
+  @apply h-3 rounded-full bg-[#0e0520] border border-purple-500/30;
+}
+
+.cosmic-dual-wallet-bar [data-slot="progress-indicator"],
+.cosmic-dual-wallet-bar > div > div {
+  @apply bg-gradient-to-r from-emerald-500 to-teal-300 shadow-[0_0_15px_rgba(16,185,129,0.7)];
+}
+
+.cosmic-foot-bar {
+  @apply fixed bottom-0 inset-x-0 z-50 bg-[#0e0422]/90 backdrop-blur-lg border-t border-purple-500/30 px-4 py-2 flex items-center justify-between;
+}
+
+/* Hide root-layout chat/ticker when cosmic pages active */
+body.cosmic-ui-active {
+  background: var(--bg-cosmic-dark) !important;
+  background-image: none !important;
+}
+
+body.cosmic-ui-active [data-global-chrome] {
+  display: none !important;
+}
+
+.cosmic-foot-bar {
+  background: rgba(14, 4, 34, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-glass);
+}
+
+.cosmic-public-page,
+.cosmic-nebula-page {
+  background-color: #060212;
+  background-image:
+    radial-gradient(ellipse 100% 70% at 50% -10%, rgba(124, 58, 237, 0.55), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 100% 40%, rgba(6, 182, 212, 0.2), transparent 50%),
+    radial-gradient(ellipse 55% 45% at 0% 70%, rgba(217, 70, 239, 0.22), transparent 50%),
+    radial-gradient(ellipse 40% 30% at 50% 100%, rgba(251, 191, 36, 0.08), transparent 45%),
+    radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    radial-gradient(circle at 75% 55%, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 45% 85%, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 240px 240px, 300px 300px, 360px 360px;
+  background-attachment: fixed;
+}
+
+.cosmic-public-page {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(109, 40, 217, 0.22), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 100% 50%, rgba(6, 182, 212, 0.08), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 0% 80%, rgba(217, 70, 239, 0.1), transparent 45%),
+    linear-gradient(180deg, #0a0418 0%, #12072a 40%, #0a0418 100%);
+}
+
+/* ── Cosmic App Layout (mockup shell) ── */
+body.cosmic-app-mode {
+  background: #030008;
+}
+
+.cosmic-app-shell {
+  min-height: 100vh;
+  background-color: #060212;
+  background-image:
+    radial-gradient(ellipse 100% 65% at 50% -5%, rgba(124, 58, 237, 0.6), transparent 58%),
+    radial-gradient(ellipse 55% 45% at 98% 88%, rgba(217, 70, 239, 0.28), transparent 52%),
+    radial-gradient(ellipse 50% 40% at 2% 72%, rgba(6, 182, 212, 0.22), transparent 50%),
+    radial-gradient(ellipse 35% 25% at 50% 50%, rgba(251, 191, 36, 0.06), transparent 55%),
+    radial-gradient(circle at 18% 28%, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    radial-gradient(circle at 72% 62%, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 42% 82%, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 240px 240px, 300px 300px, 360px 360px;
+  background-attachment: fixed;
+}
+
+.cosmic-app-sidebar {
+  background: transparent;
+}
+
+.cosmic-sidebar-group-glow {
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 0.875rem;
+  background: rgba(14, 5, 32, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 0 22px rgba(147, 51, 234, 0.12), inset 0 1px 0 rgba(216, 180, 254, 0.06);
+}
+
+.cosmic-top-bar {
+  background: linear-gradient(180deg, rgba(8, 2, 20, 0.97) 0%, rgba(6, 2, 16, 0.92) 100%);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.15);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.45), 0 0 40px rgba(109, 40, 217, 0.12);
+}
+
+.cosmic-balance-card {
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(14, 5, 32, 0.88);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 0 16px rgba(147, 51, 234, 0.1);
+}
+
+.cosmic-balance-card-cashout {
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.12);
+}
+
+.cosmic-balance-label {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(216, 180, 254, 0.65);
+  line-height: 1.2;
+}
+
+.cosmic-balance-value {
+  font-size: 0.95rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.15rem;
+}
+
+body.cosmic-app-mode .cosmic-foot-bar {
+  background: rgba(10, 4, 24, 0.94);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid rgba(168, 85, 247, 0.3);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.cosmic-cashier-modal {
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  box-shadow: var(--shadow-gold-glow), 0 8px 40px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(145deg, rgba(20, 8, 44, 0.95) 0%, rgba(10, 4, 24, 0.98) 100%);
+}
+
+.cosmic-copy-btn {
+  background: linear-gradient(to right, #34d399, #059669);
+  color: #022c22;
+  font-weight: 800;
+  font-size: 10px;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  box-shadow: var(--shadow-emerald-glow);
+  transition: filter 0.2s;
+}
+
+.cosmic-copy-btn:hover {
+  filter: brightness(1.1);
+}
+
+.cosmic-ipn-pulse {
+  animation: cosmic-ipn-pulse 2s ease-in-out infinite;
+}
+
+@keyframes cosmic-ipn-pulse {
+  0%, 100% { opacity: 0.6; box-shadow: 0 0 8px rgba(16, 185, 129, 0.3); }
+  50% { opacity: 1; box-shadow: 0 0 18px rgba(16, 185, 129, 0.6); }
+}
+
+@keyframes cosmic-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: cosmic-marquee 28s linear infinite;
+}
+
+.cosmic-live-ticker {
+  box-shadow: 0 0 20px rgba(147, 51, 234, 0.15);
+}
+
+.cosmic-sidebar-group {
+  border-radius: 0.875rem;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  background: rgba(14, 5, 32, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 0.375rem;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 0 18px rgba(6, 182, 212, 0.12), inset 0 0 12px rgba(147, 51, 234, 0.08);
+}
+
+.cosmic-dashboard-content {
+  border-top: 1px solid rgba(6, 182, 212, 0.2);
+  background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(109, 40, 217, 0.12), transparent 55%);
+}
+
+body.lobby-mode .vip-page-content .cosmic-glass-card,
+body.lobby-mode .vip-page-content .cosmic-glass-card-glow {
+  border-color: rgba(168, 85, 247, 0.35) !important;
+  background: linear-gradient(145deg, rgba(20, 8, 44, 0.92) 0%, rgba(10, 4, 24, 0.96) 100%) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), 0 0 28px rgba(147, 51, 234, 0.15) !important;
+}
+
+.cosmic-sidebar-group-label {
+  padding: 0.25rem 0.625rem 0.375rem;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(196, 181, 253, 0.55);
+}
+
+.cosmic-pill-tab {
+  border-radius: 9999px;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(14, 5, 32, 0.7);
+  padding: 0.375rem 0.875rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(216, 180, 254, 0.75);
+  transition: all 0.2s;
+}
+
+.cosmic-pill-tab-active {
+  background: linear-gradient(90deg, #9333ea, #a855f7);
+  border-color: rgba(216, 180, 254, 0.45);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(147, 51, 234, 0.45);
+}
+
+.hub-gradient-text,
+.cosmic-gradient-text {
+  background: linear-gradient(135deg, #fbbf24, #fcd34d, #d946ef, #06b6d4);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -85,10 +331,10 @@ body.lobby-mode {
   -webkit-text-fill-color: transparent;
 }
 
-body.lobby-mode .vip-page-content [class*="rounded-2xl"][class*="border"],
-body.lobby-mode .vip-page-content [class*="rounded-xl"][class*="border"],
-body.lobby-mode .vip-page-content .rounded-2xl.border,
-body.lobby-mode .vip-page-content .rounded-xl.border {
+body.lobby-mode .vip-page-content [class*="rounded-2xl"][class*="border"]:not(.cosmic-glass-card):not(.game-portal-hero):not(.game-portal-features):not(.game-portal-panel):not(.game-portal-credentials):not(.cosmic-cashier-modal),
+body.lobby-mode .vip-page-content [class*="rounded-xl"][class*="border"]:not(.cosmic-glass-card):not(.game-portal-copy-btn),
+body.lobby-mode .vip-page-content .rounded-2xl.border:not(.cosmic-glass-card):not(.game-portal-hero):not(.game-portal-panel),
+body.lobby-mode .vip-page-content .rounded-xl.border:not(.cosmic-glass-card) {
   border-color: rgba(147, 51, 234, 0.35) !important;
   background: linear-gradient(180deg, rgba(20, 0, 50, 0.85) 0%, rgba(10, 0, 28, 0.92) 100%);
 }
@@ -1009,15 +1255,16 @@ body.lobby-mode .fixed.bottom-20 {
 }
 
 .lobby-cosmic {
-  background-color: #030008;
+  background-color: var(--bg-cosmic-dark);
   background-image:
-    radial-gradient(ellipse 120% 70% at 50% -5%, rgba(109, 40, 217, 0.5), transparent 50%),
-    radial-gradient(ellipse 55% 45% at 98% 92%, rgba(236, 72, 153, 0.28), transparent 55%),
-    radial-gradient(ellipse 40% 35% at 8% 70%, rgba(59, 130, 246, 0.08), transparent 45%),
-    radial-gradient(circle at 12% 22%, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    radial-gradient(circle at 68% 48%, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    radial-gradient(circle at 42% 78%, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 200px 200px, 260px 260px, 320px 320px;
+    radial-gradient(ellipse 100% 60% at 50% 0%, rgba(251, 191, 36, 0.12), transparent 55%),
+    radial-gradient(ellipse 120% 70% at 50% -5%, rgba(109, 40, 217, 0.65), transparent 50%),
+    radial-gradient(ellipse 55% 45% at 98% 92%, rgba(217, 70, 239, 0.28), transparent 55%),
+    radial-gradient(ellipse 45% 40% at 8% 70%, rgba(6, 182, 212, 0.18), transparent 45%),
+    radial-gradient(circle at 12% 22%, rgba(255, 255, 255, 0.055) 1px, transparent 1px),
+    radial-gradient(circle at 68% 48%, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    radial-gradient(circle at 42% 78%, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 200px 200px, 260px 260px, 320px 320px;
   background-attachment: fixed;
 }
 
@@ -1028,9 +1275,9 @@ body.lobby-mode .fixed.bottom-20 {
 }
 
 .lobby-top-bar {
-  background: linear-gradient(180deg, rgba(18, 0, 45, 0.98) 0%, rgba(8, 0, 24, 0.95) 100%);
-  border-bottom: 1px solid rgba(147, 51, 234, 0.35);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(180deg, rgba(10, 4, 24, 0.98) 0%, rgba(6, 2, 16, 0.96) 100%);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 40px rgba(109, 40, 217, 0.15);
 }
 
 .lobby-balance-chip {
@@ -1072,9 +1319,11 @@ body.lobby-mode .fixed.bottom-20 {
 }
 
 .lobby-bottom-nav {
-  background: linear-gradient(0deg, rgba(3, 0, 10, 0.99) 0%, rgba(22, 0, 55, 0.96) 100%);
-  border-top: 1px solid rgba(147, 51, 234, 0.4);
-  box-shadow: 0 -3px 20px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(147, 51, 234, 0.12);
+  background: rgba(14, 4, 34, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-glass);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(147, 51, 234, 0.12);
   min-height: 56px;
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -1211,4 +1460,136 @@ body.lobby-mode .fixed.bottom-20 {
   .lobby-hero-row .lobby-right-panel {
     min-height: 128px;
   }
+}
+
+/* ── Game Launch Portal (Cosmic Arcade Glow) ── */
+.game-portal-page {
+  position: relative;
+  isolation: isolate;
+}
+
+.game-portal-page::before {
+  content: "";
+  position: absolute;
+  inset: -2rem -1rem auto;
+  height: 6rem;
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.35), transparent);
+  filter: blur(20px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.game-portal-page::after {
+  content: "";
+  position: absolute;
+  inset: auto -1rem -2rem;
+  height: 5rem;
+  background: linear-gradient(0deg, rgba(147, 51, 234, 0.35), transparent);
+  filter: blur(18px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.game-portal-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.15), inset 0 0 40px rgba(147, 51, 234, 0.08);
+  background: linear-gradient(180deg, rgba(10, 4, 24, 0.95), rgba(5, 8, 22, 0.98));
+}
+
+.game-portal-hero-title {
+  background: linear-gradient(180deg, #fde68a, #fbbf24, #f97316);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.45));
+}
+
+.game-portal-credentials {
+  border: 1px solid rgba(6, 182, 212, 0.55);
+  background: rgba(5, 12, 28, 0.85);
+  box-shadow: 0 0 24px rgba(6, 182, 212, 0.2), inset 0 0 20px rgba(6, 182, 212, 0.06);
+  backdrop-filter: blur(12px);
+}
+
+.game-portal-copy-btn {
+  background: linear-gradient(180deg, #34d399, #10b981);
+  color: #022c22;
+  font-weight: 800;
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.45);
+  transition: filter 0.2s;
+}
+
+.game-portal-copy-btn:hover {
+  filter: brightness(1.1);
+}
+
+.game-portal-launch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  border-radius: 9999px;
+  font-weight: 900;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #451a03;
+  background: linear-gradient(180deg, #fde68a 0%, #fbbf24 35%, #f97316 100%);
+  border: 2px solid rgba(254, 243, 199, 0.85);
+  box-shadow: 0 0 30px rgba(249, 115, 22, 0.55), 0 4px 0 #b45309;
+  transition: transform 0.2s, filter 0.2s;
+}
+
+.game-portal-launch-btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.game-portal-quick-load-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border-radius: 9999px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: #fff;
+  background: linear-gradient(90deg, #9333ea, #d946ef);
+  border: 1px solid rgba(216, 180, 254, 0.45);
+  box-shadow: 0 0 20px rgba(217, 70, 239, 0.35);
+  transition: filter 0.2s;
+}
+
+.game-portal-quick-load-btn:hover {
+  filter: brightness(1.1);
+}
+
+.game-portal-features {
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(8, 12, 32, 0.75);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.game-portal-panel {
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  background: rgba(6, 10, 28, 0.82);
+  box-shadow: 0 0 22px rgba(59, 130, 246, 0.15);
+  backdrop-filter: blur(10px);
+}
+
+.game-portal-wallet-section {
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: linear-gradient(145deg, rgba(14, 5, 32, 0.92), rgba(5, 8, 22, 0.96));
+  box-shadow: 0 0 28px rgba(147, 51, 234, 0.12);
 }

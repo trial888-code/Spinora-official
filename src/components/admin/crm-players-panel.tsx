@@ -135,7 +135,9 @@ export function CrmPlayersPanel({
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge className="bg-foreground/8 text-xs">Lv {profileNum(p.level, 1)}</Badge>
+                  <Badge className="bg-amber-500/20 text-amber-300 font-bold text-xs">
+                    Lv {Math.max(1, Math.floor(profileNum(p.vip_points) / 500) + 1)}
+                  </Badge>
                   {vip && (
                     <Badge
                       className="text-xs"
@@ -148,7 +150,9 @@ export function CrmPlayersPanel({
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Coins</p>
-                    <p className="tnum font-medium">{profileNum(p.coins_balance).toLocaleString()}</p>
+                    <p className="tnum font-medium text-ws-green-deep dark:text-ws-green">
+                      {profileNum(p.bonus_wallet ?? p.coins_balance).toLocaleString()}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Deposits</p>
@@ -219,8 +223,8 @@ export function CrmPlayersPanel({
 
                   <TableCell>
                     <div className="flex flex-col gap-1">
-                      <Badge className="w-fit bg-foreground/8 text-xs">
-                        Lv {profileNum(p.level, 1)}
+                      <Badge className="w-fit bg-amber-500/20 text-amber-300 font-bold text-xs">
+                        Lv {Math.max(1, Math.floor(profileNum(p.vip_points) / 500) + 1)}
                       </Badge>
                       {vip && (
                         <Badge
@@ -236,8 +240,8 @@ export function CrmPlayersPanel({
                     </div>
                   </TableCell>
 
-                  <TableCell className="text-right tnum font-medium">
-                    {profileNum(p.coins_balance).toLocaleString()}
+                  <TableCell className="text-right tnum font-medium text-ws-green-deep dark:text-ws-green">
+                    {profileNum(p.bonus_wallet ?? p.coins_balance).toLocaleString()}
                   </TableCell>
 
                   <TableCell className="text-right">

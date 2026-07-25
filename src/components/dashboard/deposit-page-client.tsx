@@ -1,72 +1,49 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { Gamepad2 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { NowPaymentsDepositModal } from "@/components/wallet/nowpayments-deposit-modal";
 import { GameDepositSection } from "@/components/games/game-deposit-section";
-import { DashboardPageHeader } from "@/components/dashboard/dashboard-page-header";
 import { GAMES } from "@/lib/games";
-import { cn } from "@/lib/utils";
 
-const PLAYABLE_GAMES = GAMES.filter((g) => !g.upcoming);
+const PLAYABLE = GAMES.filter((g) => !g.upcoming);
 
+/** Prompt C — NOWPayments Crypto Cashier as full-page deposit UI */
 export function DepositPageClient() {
-  const defaultSlug = PLAYABLE_GAMES[0]?.slug ?? "game-vault";
-  const [gameSlug, setGameSlug] = useState(defaultSlug);
-
-  const game = useMemo(
-    () => PLAYABLE_GAMES.find((g) => g.slug === gameSlug) ?? PLAYABLE_GAMES[0],
-    [gameSlug]
-  );
-
-  if (!game) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        No games available for deposits yet.
-      </div>
-    );
-  }
+  const [manualOpen, setManualOpen] = useState(false);
+  const game = PLAYABLE[0];
+  if (!game) return null;
 
   return (
-    <div>
-      <DashboardPageHeader
-        title="Deposit"
-        description="Choose a payment method, send your deposit, then upload a screenshot. We credit your game account after verification."
-      />
-
-      <div className="mb-4 rounded-xl border border-white/10 bg-[#161616] p-4">
-        <label htmlFor="deposit-game" className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-          <Gamepad2 className="h-3.5 w-3.5" />
-          Deposit for game
-        </label>
-        <select
-          id="deposit-game"
-          value={game.slug}
-          onChange={(e) => setGameSlug(e.target.value)}
-          className={cn(
-            "w-full rounded-xl border border-white/10 bg-[#242424] px-4 py-3 text-sm text-white",
-            "focus:outline-none focus:border-orange-500/40"
-          )}
-        >
-          {PLAYABLE_GAMES.map((g) => (
-            <option key={g.slug} value={g.slug}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-        <p className="text-[11px] text-muted-foreground mt-2">
-          Or open a{" "}
-          <Link href="/#games" className="text-orange-400 hover:underline">
-            game page
-          </Link>{" "}
-          to deposit while you browse.{" "}
-          <Link href="/dashboard/deposits" className="text-orange-400 hover:underline">
-            View my deposit history
-          </Link>
-        </p>
+    <div className="max-w-2xl mx-auto space-y-6 py-4">
+      <div className="text-center space-y-2 mb-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400/90">Secure Crypto Deposit</p>
+        <h1 className="text-2xl sm:text-3xl font-black text-white">NOWPayments Cashier</h1>
+        <p className="text-xs text-purple-200/60">USDT · BTC · ETH · SOL — automated IPN crediting</p>
       </div>
 
-      <GameDepositSection game={game} hideSectionAnchor />
+      <NowPaymentsDepositModal />
+
+      <button
+        type="button"
+        onClick={() => setManualOpen((v) => !v)}
+        className="cosmic-glass-card w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-purple-200/80 hover:border-purple-400/40 transition-colors"
+      >
+        Manual deposit (PayPal, Chime, etc.)
+        <ChevronDown className={`h-4 w-4 transition-transform ${manualOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {manualOpen && (
+        <div className="space-y-4 cosmic-glass-card p-4">
+          <GameDepositSection game={game} hideSectionAnchor />
+          <p className="text-center text-xs text-purple-300/50">
+            <Link href="/dashboard/deposits" className="text-cyan-400 hover:underline">
+              View deposit history
+            </Link>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,10 @@ export async function POST(req: Request) {
       orderDescription: `Spinora Casino Deposit $${amount}`,
     });
 
+    if (!invoice.success) {
+      return NextResponse.json({ error: invoice.error || "Failed to create payment invoice" }, { status: 400 });
+    }
+
     // Record pending transaction log on server console
     if (userId) {
       console.log(`[nowpayments/create] Deposit requested: user ${userId}, amount ${amount}, orderId ${orderId}, invoiceUrl ${invoice.invoice_url}`);

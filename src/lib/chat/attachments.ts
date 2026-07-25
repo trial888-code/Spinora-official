@@ -102,10 +102,22 @@ export async function getChatAttachmentSignedUrl(
   path: string,
   expiresIn = 3600
 ): Promise<string | null> {
+  if (!path) return null;
+  const cleanPath = path.startsWith("chat-attachments/")
+    ? path.replace("chat-attachments/", "")
+    : path;
+
   const { data, error } = await supabase.storage
     .from(CHAT_ATTACHMENT_BUCKET)
-    .createSignedUrl(path, expiresIn);
+    .createSignedUrl(cleanPath, expiresIn);
 
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  if (!error && data?.signedUrl) {
+    return data.signedUrl;
+  }
+
+  const { data: pubData } = supabase.storage
+    .from(CHAT_ATTACHMENT_BUCKET)
+    .getPublicUrl(cleanPath);
+
+  return pubData?.publicUrl ?? null;
 }

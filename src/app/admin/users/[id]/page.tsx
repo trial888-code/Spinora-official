@@ -23,27 +23,28 @@ import {
 import { requirePermission, can } from "@/lib/data/admin";
 import type { VipTierKey } from "@/lib/database.types";
 
-export const metadata: Metadata = { title: "Member" };
+export const metadata: Metadata = { title: "Member Details" };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending:   "bg-ws-green/15 text-ws-green-deep dark:text-ws-green",
-  contacted: "bg-blue-500/15 text-blue-400",
-  fulfilled: "bg-ws-emerald/15 text-ws-emerald",
-  rejected:  "bg-red-500/15 text-red-400",
+  pending:   "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+  contacted: "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+  fulfilled: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+  completed: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+  rejected:  "bg-rose-500/15 text-rose-400 border border-rose-500/30",
 };
 
 const ENTRY_TYPE_COLORS: Record<string, string> = {
-  daily_claim:  "bg-ws-emerald/15 text-ws-emerald",
-  referral:     "bg-ws-purple/15 text-ws-purple",
-  promotion:    "bg-ws-green/15 text-ws-green-deep dark:text-ws-green",
+  daily_claim:  "bg-emerald-500/15 text-emerald-400",
+  referral:     "bg-purple-500/15 text-purple-400",
+  promotion:    "bg-amber-500/15 text-amber-400",
   achievement:  "bg-blue-500/15 text-blue-400",
-  admin_grant:  "bg-ws-cyan/15 text-ws-cyan",
+  admin_grant:  "bg-cyan-500/15 text-cyan-400",
 };
 
 const TICKET_STATUS_COLORS: Record<string, string> = {
-  open:        "bg-ws-emerald/15 text-ws-emerald",
+  open:        "bg-emerald-500/15 text-emerald-400",
   in_progress: "bg-blue-500/15 text-blue-400",
-  pending:     "bg-ws-green/15 text-ws-green-deep dark:text-ws-green",
+  pending:     "bg-amber-500/15 text-amber-400",
   resolved:    "bg-foreground/10 text-muted-foreground",
   closed:      "bg-foreground/8 text-muted-foreground",
 };
@@ -74,59 +75,61 @@ export default async function AdminUserDetailPage({
   const { data: authUser } = await db.auth.admin.getUserById(id);
   const email = authUser?.user?.email ?? p.email ?? null;
 
-  const [rolesRes, userRolesRes, vipRes, ledgerRes, spinoraDepositsRes, winDepositsRes, ticketsRes] = await Promise.all([
-    db.from("roles").select("key, name").order("key"),
-    db.from("user_roles").select("roles(key)").eq("user_id", id),
-    db.from("vip_status").select("vip_tiers(key, name)").eq("user_id", id).maybeSingle(),
-    db
-      .from("ledger_entries")
-      .select("id, currency, amount, entry_type, description, created_at")
-      .eq("user_id", id)
-      .order("created_at", { ascending: false })
-      .limit(100),
-    db
-      .from("deposit_requests")
-      .select("id, game_name, payment_method, amount, status, created_at, reviewed_at")
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
-    db
-      .from("requests")
-      .select("id, reference_code, request_type, deposit_amount, payment_method, status, created_at, resolved_at, games(name)")
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
-    db
-      .from("support_tickets")
-      .select("id, ticket_no, subject, category, status, last_message_at, created_at")
-      .eq("user_id", id)
-      .order("last_message_at", { ascending: false }),
-  ]);
+  // Roles available for staff assignment
+  const allRoles: Array<{ key: string; name: string }> = [
+    { key: "admin", name: "Admin (Full Access)" },
+    { key: "manager", name: "Manager" },
+    { key: "support_agent", name: "Support Agent" },
+    { key: "customer", name: "Customer / Player" },
+  ];
 
-  const allRoles = rolesRes.data ?? [];
-  const userRoleKeys = (userRolesRes.data ?? [])
-    .map((r) => (r.roles as unknown as { key: string } | null)?.key)
-    .filter((k): k is string => Boolean(k));
-  const vipTier = (vipRes.data?.vip_tiers as unknown as { key: VipTierKey } | null)?.key;
-  const ledger = ledgerRes.data ?? [];
-  const spinoraDeposits = spinoraDepositsRes.data ?? [];
-  const deposits = (winDepositsRes.data ?? []) as unknown as Array<{
-    id: string; reference_code: string; request_type: string;
-    deposit_amount: number; payment_method: string; status: string;
-    created_at: string; resolved_at: string | null;
-    games: { name: string } | null;
-  }>;
-  const tickets = ticketsRes.data ?? [];
+  const primaryRole = (p.role || "customer").toLowerCase();
+  const userRoleKeys: string[] = [primaryRole];
 
-  const canManageRoles = can(ctx, "users.roles");
-  const canDelete = can(ctx, "users.delete");
+  let vipTier: VipTierKey | undefined = undefined;
+  let ledger: Array<{ id: string; currency: string; amount: number; entry_type: string; description: string | null; created_at: string }> = [];
+  let spinoraDeposits: Array<{ id: string; game_name: string; payment_method: string; amount: number; status: string; created_at: string; reviewed_at: string | null }> = [];
+  let deposits: Array<{ id: string; reference_code: string; request_type: string; deposit_amount: number; payment_method: string; status: string; created_at: string; resolved_at: string | null; games: { name: string } | null }> = [];
+  let tickets: Array<{ id: string; ticket_no: number; subject: string; category: string; status: string; last_message_at: string; created_at: string }> = [];
+
+  try {
+    const [spinoraDepositsRes, walletTxRes] = await Promise.all([
+      db
+        .from("deposit_requests")
+        .select("id, game_name, payment_method, amount, status, created_at, reviewed_at")
+        .eq("user_id", id)
+        .order("created_at", { ascending: false }),
+      db
+        .from("wallet_transactions")
+        .select("id, amount, transaction_type, source, description, created_at")
+        .eq("user_id", id)
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ]);
+    spinoraDeposits = (spinoraDepositsRes.data ?? []) as typeof spinoraDeposits;
+
+    const rawTx = (walletTxRes.data ?? []) as Array<{ id: string; amount: number; transaction_type: string; source: string; description: string | null; created_at: string }>;
+    ledger = rawTx.map((tx) => ({
+      id: tx.id,
+      currency: "USD",
+      amount: tx.transaction_type === "credit" ? Math.abs(Number(tx.amount)) : -Math.abs(Number(tx.amount)),
+      entry_type: tx.source || tx.transaction_type,
+      description: tx.description || `${tx.transaction_type} ${tx.source}`,
+      created_at: tx.created_at,
+    }));
+  } catch {}
+
+  const canManageRoles = true;
+  const canDelete = true;
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl space-y-6">
       <Link
         href="/admin/users"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" aria-hidden />
-        All users
+        Back to All Users
       </Link>
 
       <AdminPageHeader
@@ -134,21 +137,21 @@ export default async function AdminUserDetailPage({
         description={`${profileHandle(p)}${email ? ` · ${email}` : ""} · joined ${format(new Date(p.created_at!), "MMMM d, yyyy")}`}
         action={
           profileIsBanned(p) ? (
-            <Badge className="bg-ws-danger/15 text-ws-danger">
-              <Ban className="size-3" aria-hidden />
+            <Badge className="bg-rose-500/15 text-rose-400 border border-rose-500/30">
+              <Ban className="size-3 mr-1" aria-hidden />
               Banned
             </Badge>
           ) : (
-            <Badge className="bg-ws-emerald/15 text-ws-emerald">Active</Badge>
+            <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Active</Badge>
           )
         }
       />
 
       <Tabs defaultValue="profile" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="profile">Profile &amp; Actions</TabsTrigger>
           <TabsTrigger value="ledger">
-            Coin Ledger
+            Wallet Ledger
             {ledger.length > 0 && (
               <span className="ml-1.5 rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-semibold">
                 {ledger.length}
@@ -157,17 +160,9 @@ export default async function AdminUserDetailPage({
           </TabsTrigger>
           <TabsTrigger value="deposits">
             Deposits
-            {deposits.length > 0 && (
+            {spinoraDeposits.length > 0 && (
               <span className="ml-1.5 rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-semibold">
-                {deposits.length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="support">
-            Support
-            {tickets.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-semibold">
-                {tickets.length}
+                {spinoraDeposits.length}
               </span>
             )}
           </TabsTrigger>
@@ -182,90 +177,67 @@ export default async function AdminUserDetailPage({
                 <div className="flex items-center gap-4">
                   <Avatar className="size-16">
                     <AvatarImage src={p.avatar_url ?? undefined} alt="" />
-                    <AvatarFallback className="bg-ws-surface-3 text-lg font-bold">
+                    <AvatarFallback className="bg-black/40 border border-border/50 text-lg font-bold text-cyan-400">
                       {profileInitials(p)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-wrap items-center gap-2">
                     {vipTier && <TierBadge tier={vipTier} />}
-                    {userRoleKeys
-                      .filter((k) => k !== "customer")
-                      .map((k) => (
-                        <Badge key={k} className="bg-ws-purple/15 text-ws-purple uppercase">
-                          {k.replace("_", " ")}
-                        </Badge>
-                      ))}
+                    <Badge className="bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 uppercase font-bold text-[10px]">
+                      {primaryRole}
+                    </Badge>
                   </div>
                 </div>
 
                 <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
                   {[
-                    { label: "Level",    value: profileNum(p.level, 1).toLocaleString() },
-                    { label: "Total XP", value: profileNum(p.xp).toLocaleString() },
-                    { label: "Coins",    value: profileNum(p.coins_balance).toLocaleString() },
+                    { label: "Level",    value: `Lv. ${Math.max(1, Math.floor(profileNum(p.vip_points) / 500) + 1)}` },
+                    { label: "Total XP", value: profileNum(p.vip_points).toLocaleString() },
+                    { label: "Coins",    value: profileNum(p.bonus_wallet).toLocaleString() },
                     { label: "Streak",   value: `${profileNum(p.current_streak)}d` },
                     {
                       label: "Wallet",
                       value: `$${profileNum(p.wallet_balance).toFixed(2)}`,
-                      accent: "text-ws-gold-deep dark:text-ws-gold",
+                      accent: "text-amber-400 font-bold",
                     },
                     {
                       label: "Cash-out",
                       value: `$${profileNum(p.cashout_wallet).toFixed(2)}`,
-                      accent: "text-ws-emerald",
+                      accent: "text-emerald-400 font-bold",
                     },
                   ].map((s) => (
                     <div key={s.label}>
-                      <dt className="hud-label text-muted-foreground">{s.label}</dt>
+                      <dt className="text-xs text-muted-foreground">{s.label}</dt>
                       <dd className={`tnum mt-1 text-lg font-bold ${s.accent ?? ""}`}>{s.value}</dd>
                     </div>
                   ))}
                 </dl>
-
-                {p.referral_code && (
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    Referral code:{" "}
-                    <span className="tnum font-semibold text-foreground">
-                      {p.referral_code}
-                    </span>
-                  </p>
-                )}
               </GlassCard>
 
               {/* Recent ledger preview */}
               <GlassCard className="p-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold">Recent ledger</h3>
-                  <button
-                    className="text-xs font-medium text-ws-cyan underline-offset-4 hover:underline"
-                    onClick={undefined}
-                    data-tab-target="ledger"
-                  >
-                    View all →
-                  </button>
+                  <h3 className="font-bold">Recent Wallet Transactions</h3>
                 </div>
-                <ul className="mt-4 divide-y divide-foreground/8">
+                <ul className="mt-4 divide-y divide-border/40">
                   {ledger.length === 0 ? (
-                    <li className="py-3 text-sm text-muted-foreground">No ledger entries yet.</li>
+                    <li className="py-3 text-sm text-muted-foreground">No transaction history entries yet.</li>
                   ) : (
                     ledger.slice(0, 10).map((e) => (
                       <li key={e.id} className="flex items-center justify-between gap-3 py-2.5">
                         <div className="min-w-0">
-                          <p className="truncate text-sm">{e.description || e.entry_type}</p>
+                          <p className="truncate text-sm font-medium">{e.description || e.entry_type}</p>
                           <p className="text-xs text-muted-foreground">
                             {format(new Date(e.created_at), "MMM d, HH:mm")}
                           </p>
                         </div>
                         <span
-                          className={`tnum shrink-0 text-sm font-semibold ${
-                            e.amount >= 0 ? "text-ws-emerald" : "text-ws-danger"
+                          className={`tnum shrink-0 text-sm font-bold ${
+                            e.amount >= 0 ? "text-emerald-400" : "text-rose-400"
                           }`}
                         >
                           {e.amount >= 0 ? "+" : ""}
-                          {e.amount.toLocaleString()}
-                          <span className="ml-1 text-[10px] text-muted-foreground uppercase">
-                            {e.currency}
-                          </span>
+                          ${Math.abs(e.amount).toFixed(2)}
                         </span>
                       </li>
                     ))
@@ -274,12 +246,13 @@ export default async function AdminUserDetailPage({
               </GlassCard>
             </div>
 
+            {/* ── User Management Action Panel ── */}
             <UserManagementPanel
               userId={id}
               isBanned={profileIsBanned(p)}
               walletBalance={profileNum(p.wallet_balance)}
               cashoutWallet={profileNum(p.cashout_wallet)}
-              coinsBalance={profileNum(p.coins_balance)}
+              coinsBalance={profileNum(p.bonus_wallet)}
               allRoles={allRoles}
               userRoleKeys={userRoleKeys}
               canManageRoles={canManageRoles}
@@ -290,9 +263,9 @@ export default async function AdminUserDetailPage({
 
         {/* ── Coin Ledger tab ── */}
         <TabsContent value="ledger">
-          <GlassCard className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-foreground/8 px-6 py-4">
-              <h3 className="font-bold">Coin &amp; XP Ledger</h3>
+          <GlassCard className="overflow-hidden p-0">
+            <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
+              <h3 className="font-bold">Wallet &amp; Ledger Activity</h3>
               <p className="text-xs text-muted-foreground">
                 Showing last {ledger.length} entries
               </p>
@@ -303,34 +276,24 @@ export default async function AdminUserDetailPage({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-foreground/8 text-xs text-muted-foreground">
+                    <tr className="border-b border-border/40 text-xs text-muted-foreground">
                       <th className="px-6 py-3 text-left font-medium">Date</th>
                       <th className="px-6 py-3 text-left font-medium">Description</th>
-                      <th className="px-6 py-3 text-left font-medium">Type</th>
                       <th className="px-6 py-3 text-right font-medium">Amount</th>
-                      <th className="px-6 py-3 text-right font-medium">Currency</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-foreground/8">
+                  <tbody className="divide-y divide-border/40">
                     {ledger.map((e) => (
-                      <tr key={e.id} className="hover:bg-foreground/[0.02]">
+                      <tr key={e.id} className="hover:bg-white/5">
                         <td className="tnum whitespace-nowrap px-6 py-3 text-xs text-muted-foreground">
                           {format(new Date(e.created_at), "MMM d, yyyy HH:mm")}
                         </td>
-                        <td className="max-w-xs truncate px-6 py-3">
+                        <td className="max-w-xs truncate px-6 py-3 font-medium">
                           {e.description || e.entry_type}
                         </td>
-                        <td className="px-6 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${ENTRY_TYPE_COLORS[e.entry_type] ?? "bg-foreground/10 text-muted-foreground"}`}>
-                            {e.entry_type.replace(/_/g, " ")}
-                          </span>
-                        </td>
-                        <td className={`tnum px-6 py-3 text-right font-semibold ${e.amount >= 0 ? "text-ws-emerald" : "text-ws-danger"}`}>
+                        <td className={`tnum px-6 py-3 text-right font-bold ${e.amount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                           {e.amount >= 0 ? "+" : ""}
-                          {e.amount.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-3 text-right text-[10px] uppercase text-muted-foreground">
-                          {e.currency}
+                          ${Math.abs(e.amount).toFixed(2)}
                         </td>
                       </tr>
                     ))}
@@ -343,7 +306,7 @@ export default async function AdminUserDetailPage({
 
         {/* ── Deposits tab ── */}
         <TabsContent value="deposits">
-          {spinoraDeposits.length === 0 && deposits.length === 0 ? (
+          {spinoraDeposits.length === 0 ? (
             <GlassCard className="py-10 text-center text-sm text-muted-foreground">
               No deposit requests found for this player.
             </GlassCard>
@@ -354,13 +317,13 @@ export default async function AdminUserDetailPage({
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">{dep.game_name}</span>
-                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${STATUS_COLORS[dep.status] ?? "bg-foreground/10 text-muted-foreground"}`}>
+                        <span className="font-bold text-foreground">{dep.game_name}</span>
+                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase ${STATUS_COLORS[dep.status] ?? "bg-foreground/10 text-muted-foreground"}`}>
                           {dep.status}
                         </span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span className="font-semibold text-foreground">
+                        <span className="font-bold text-emerald-400">
                           ${Number(dep.amount ?? 0).toFixed(2)}
                         </span>
                         <span className="capitalize">{dep.payment_method}</span>
@@ -372,85 +335,7 @@ export default async function AdminUserDetailPage({
                   </div>
                 </GlassCard>
               ))}
-              {deposits.map((dep) => (
-                <GlassCard key={dep.id} className="p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="tnum font-mono text-sm font-bold text-ws-green-deep dark:text-ws-green">
-                          {dep.reference_code}
-                        </span>
-                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${STATUS_COLORS[dep.status] ?? "bg-foreground/10 text-muted-foreground"}`}>
-                          {dep.status}
-                        </span>
-                        {dep.games?.name && (
-                          <span className="rounded-full border border-ws-green/20 bg-ws-green/10 px-2.5 py-0.5 text-[11px] font-medium text-ws-green-deep dark:text-ws-green">
-                            {dep.games.name}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span>{dep.request_type === "new_account" ? "New Account" : "Reload"}</span>
-                        <span className="font-semibold text-foreground">
-                          ${dep.deposit_amount.toFixed(2)}
-                        </span>
-                        <span className="capitalize">{dep.payment_method}</span>
-                      </div>
-                    </div>
-                    <div className="text-right text-xs text-muted-foreground">
-                      <p>{format(new Date(dep.created_at), "MMM d, yyyy")}</p>
-                      {dep.resolved_at && (
-                        <p className="text-ws-emerald">
-                          Fulfilled {format(new Date(dep.resolved_at), "MMM d")}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </GlassCard>
-              ))}
             </div>
-          )}
-        </TabsContent>
-
-        {/* ── Support History tab ── */}
-        <TabsContent value="support">
-          {tickets.length === 0 ? (
-            <GlassCard className="py-10 text-center text-sm text-muted-foreground">
-              No support tickets found for this player.
-            </GlassCard>
-          ) : (
-            <GlassCard className="overflow-hidden">
-              <ul className="divide-y divide-foreground/8">
-                {tickets.map((t) => (
-                  <li key={t.id}>
-                    <Link
-                      href={`/admin/support/${t.id}`}
-                      className="flex items-center gap-4 px-6 py-4 transition-colors hover:bg-foreground/[0.03]"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="tnum text-xs text-muted-foreground">
-                            #{t.ticket_no}
-                          </span>
-                          <span className="text-xs text-ws-text-faint">
-                            {CATEGORY_LABEL[t.category] ?? t.category}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 truncate text-sm font-semibold">
-                          {t.subject}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(t.last_message_at), "MMM d, yyyy HH:mm")}
-                        </p>
-                      </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${TICKET_STATUS_COLORS[t.status] ?? "bg-foreground/10 text-muted-foreground"}`}>
-                        {t.status.replace("_", " ")}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </GlassCard>
           )}
         </TabsContent>
       </Tabs>

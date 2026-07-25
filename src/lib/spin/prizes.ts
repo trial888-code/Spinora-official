@@ -25,14 +25,15 @@ export const WHEEL_PRIZES: WheelPrize[] = [
   { id: "10", label: "$10", type: "cash", value: FREEPLAY_RULES.maxBonusCash, emoji: "🎉", color: "#1a0a2e", weight: 1 },
 ];
 
+/** Strictly 1 spin per day for all players, regardless of VIP tier or missed days. */
 export const DAILY_SPINS_BY_TIER: Record<string, number> = {
   bronze: 1,
-  silver: 2,
-  gold: 3,
-  platinum: 3,
+  silver: 1,
+  gold: 1,
+  platinum: 1,
 };
 
-/** Rolling window — next spin unlocks 24 hours after the previous spin(s). */
+/** Rolling window — next spin unlocks 24 hours after the previous spin. */
 export const SPIN_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export function pickWeightedPrize(): { prize: WheelPrize; index: number } {

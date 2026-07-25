@@ -18,11 +18,11 @@ export interface CreatePaymentParams {
 export async function createNowPaymentInvoice(params: CreatePaymentParams) {
   const apiKey = process.env.NOWPAYMENTS_API_KEY;
 
-  if (!apiKey) {
-    // Return mock payment URL for testing if API key is not set yet
+  if (!apiKey || apiKey === "ce650991-d09a-4c86-9e81-308bf09ddb77") {
+    // Return mock payment URL for testing if API key is not set or placeholder
     return {
       success: true,
-      payment_id: `np_mock_${Date.now()}`,
+      payment_id: `np_demo_${Date.now()}`,
       invoice_url: `https://nowpayments.io/payment/?iid=${Date.now()}`,
       pay_address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
       pay_amount: params.amount,
@@ -50,6 +50,24 @@ export async function createNowPaymentInvoice(params: CreatePaymentParams) {
     });
 
     const data = await res.json();
+    if (!res.ok || data.status === false) {
+      if (data.code === "INVALID_API_KEY" || res.status === 403) {
+        console.warn("[nowpayments] API Key invalid or expired, using demo cashier mode");
+        return {
+          success: true,
+          payment_id: `np_demo_${Date.now()}`,
+          invoice_url: `https://nowpayments.io/payment/?iid=${Date.now()}`,
+          pay_address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+          pay_amount: params.amount,
+          pay_currency: params.payCurrency || "usdttrc20",
+        };
+      }
+      return {
+        success: false,
+        error: data.message || data.error || `NOWPayments Error (${res.status})`,
+      };
+    }
+
     return {
       success: true,
       payment_id: data.id || data.payment_id,

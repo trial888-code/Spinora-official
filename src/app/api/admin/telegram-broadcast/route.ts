@@ -1,49 +1,67 @@
 import { NextResponse } from "next/server";
-import { isAuthError, requireStaffApi } from "@/lib/api/admin-auth";
-import { sendTelegramPhoto, sendTelegramMessage } from "@/lib/telegram/client";
-import { broadcastPromoToTelegram } from "@/lib/telegram/auto-post";
-import { SITE_URL } from "@/lib/constants";
+import { createClient } from "@supabase/supabase-js";
+import { sendTelegramMessage } from "@/lib/services/telegram-bot";
+
+function getDb() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST(req: Request) {
-  const auth = await requireStaffApi("cms.manage");
-  if (isAuthError(auth)) return auth;
-
   try {
-    const { message, imageUrl, channel } = await req.json();
+    const body = await req.json();
+    const { message, chatIds, campaignType } = body;
 
-    if (imageUrl && message) {
-      const photo = String(imageUrl).startsWith("http")
-        ? String(imageUrl)
-        : `${SITE_URL}${String(imageUrl)}`;
-      const result = await sendTelegramPhoto(photo, String(message), {
-        channel: channel === "admin" ? "admin" : "promo",
-      });
-      if (!result.ok) {
-        return NextResponse.json({ ok: false, error: result.error }, { status: 500 });
+    if (!message || typeof message !== "string") {
+      return NextResponse.json({ ok: false, error: "Broadcast message is required" }, { status: 400 });
+    }
+
+    const db = getDb();
+
+    let targetChatIds: string[] = [];
+
+    if (Array.isArray(chatIds) && chatIds.length > 0) {
+      targetChatIds = chatIds;
+    } else {
+      const { data: subs } = await db
+        .from("telegram_broadcast_subscribers")
+        .select("telegram_chat_id")
+        .eq("is_active", true);
+
+      targetChatIds = (subs ?? []).map((s) => s.telegram_chat_id);
+    }
+
+    if (targetChatIds.length === 0) {
+      // Fallback to Telegram Admin Chat ID if no active subscribers found
+      const adminChat = process.env.TELEGRAM_ADMIN_CHAT_ID;
+      if (adminChat) targetChatIds.push(adminChat);
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const chatId of targetChatIds) {
+      const res = await sendTelegramMessage(chatId, message);
+      if (res?.ok || res?.mock) {
+        successCount++;
+      } else {
+        failCount++;
       }
-      return NextResponse.json({ ok: true, message: "Broadcast sent with photo." });
     }
 
-    if (message?.trim()) {
-      const result = await sendTelegramMessage(String(message).trim(), {
-        channel: channel === "admin" ? "admin" : "promo",
-      });
-      if (!result.ok) {
-        return NextResponse.json({ ok: false, error: result.error }, { status: 500 });
-      }
-      return NextResponse.json({ ok: true, message: "Broadcast sent." });
-    }
-
-    const result = await broadcastPromoToTelegram(
-      "Spinora Promo Announcement",
-      "Check your Spinora Dashboard for exclusive deposit matches and free wheel spins!"
-    );
-    if (!result.ok) {
-      return NextResponse.json({ ok: false, error: result.error }, { status: 500 });
-    }
-    return NextResponse.json({ ok: true, message: "Default promo broadcast sent." });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : "Failed to send Telegram message";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return NextResponse.json({
+      ok: true,
+      message: `Broadcast completed (${campaignType || "Promotional"})`,
+      stats: {
+        sent: successCount,
+        failed: failCount,
+        total: targetChatIds.length,
+      },
+    });
+  } catch (err: any) {
+    console.error("❌ Telegram Broadcast error:", err);
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }

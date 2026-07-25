@@ -17,9 +17,14 @@ export function VipPageClient() {
     return null;
   }
 
-  const currentIndex = VIP_TIERS.findIndex((t) => t.id === profile.vip_tier);
+  const points = Number(profile.vip_points ?? 0);
+  const currentTier = [...VIP_TIERS].reverse().find((t) => points >= t.minPoints) || VIP_TIERS[0];
+  const currentIndex = VIP_TIERS.findIndex((t) => t.id === currentTier.id);
   const nextTier = VIP_TIERS[currentIndex + 1];
-  const progress = nextTier ? (profile.vip_points / nextTier.minPoints) * 100 : 100;
+
+  const ptsInTier = points - currentTier.minPoints;
+  const ptsNeeded = nextTier ? nextTier.minPoints - currentTier.minPoints : 1;
+  const progress = nextTier ? Math.min(100, Math.max(0, (ptsInTier / ptsNeeded) * 100)) : 100;
 
   return (
     <div>
@@ -37,37 +42,44 @@ export function VipPageClient() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-sm text-muted-foreground">Current Tier</p>
-              <p className="text-3xl font-bold capitalize">{profile.vip_tier}</p>
+              <p className="text-3xl font-bold capitalize text-amber-400">{currentTier.name}</p>
             </div>
-            <Badge className="text-lg px-4 py-2">{profile.vip_points} pts</Badge>
+            <Badge className="text-lg px-4 py-2 bg-purple-600/30 text-purple-200 border-purple-500/40">{points} pts</Badge>
           </div>
-          <Progress value={Math.min(progress, 100)} className="mb-2" />
-          {nextTier && (
+          <Progress value={progress} className="mb-2 h-3" />
+          {nextTier ? (
             <p className="text-sm text-muted-foreground">
-              {nextTier.minPoints - profile.vip_points} points until {nextTier.name}
+              <span className="text-amber-400 font-bold">{nextTier.minPoints - points}</span> points until <span className="text-white font-bold">{nextTier.name}</span>
             </p>
+          ) : (
+            <p className="text-sm text-emerald-400 font-bold">🎉 Maximum VIP Tier Unlocked!</p>
           )}
         </CardContent>
       </Card>
 
       <div className="grid sm:grid-cols-2 gap-4">
         {VIP_TIERS.map((tier) => {
-          const isCurrent = tier.id === profile.vip_tier;
-          const isUnlocked = profile.vip_points >= tier.minPoints;
+          const isCurrent = tier.id === currentTier.id;
+          const isUnlocked = points >= tier.minPoints;
           return (
-            <Card key={tier.id} className={cn(isCurrent && "ring-2 ring-primary")}>
+            <Card key={tier.id} className={cn(isCurrent && "ring-2 ring-amber-400 bg-amber-500/5")}>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>{tier.name}</span>
-                  {isCurrent && <Badge>Current</Badge>}
-                  {!isCurrent && isUnlocked && <Badge variant="success">Unlocked</Badge>}
+                  {isCurrent ? (
+                    <Badge className="bg-amber-500 text-black font-bold">Current</Badge>
+                  ) : isUnlocked ? (
+                    <Badge variant="success">Unlocked</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground">Locked ({tier.minPoints} pts)</Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
                   {tier.benefits.map((b) => (
                     <li key={b} className="flex items-center gap-2 text-sm">
-                      <Check className="h-4 w-4 text-primary" /> {b}
+                      <Check className="h-4 w-4 text-emerald-400" /> {b}
                     </li>
                   ))}
                 </ul>

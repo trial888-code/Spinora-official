@@ -28,12 +28,14 @@ import { CHAT_INBOX_CARD_CLASS, CHAT_SCROLL_CLASS } from "@/lib/chat/chat-layout
 import { useChatAutoScroll } from "@/lib/chat/use-chat-auto-scroll";
 import { CHAT_INCOMING_EVENT, type ChatIncomingDetail } from "@/lib/chat/events";
 import { playIncomingMessageSound } from "@/lib/chat/message-notification-sound";
-import { useDashboardProfile } from "@/lib/dashboard/dashboard-profile-context";
 import { appendMessage, mergeMessagesById } from "@/lib/chat/merge-messages";
 import { subscribeToConversationInserts, subscribeToMessageInserts } from "@/lib/chat/subscribe-messages";
+import { askWebsiteAiChatbotAction } from "@/lib/actions/admin/ai-faq-actions";
 import { toast } from "sonner";
-import { ArrowLeft, Headphones, MessageCircle } from "lucide-react";
+import { ArrowLeft, Headphones, MessageCircle, Bot } from "lucide-react";
 import type { Message } from "@/types/database";
+
+type ChatMode = "ai" | "agent";
 
 interface UserChatPanelProps {
   showMobileBack?: boolean;
@@ -48,6 +50,8 @@ interface UserChatPanelProps {
   loading: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
   onScrollMessages?: () => void;
+  chatMode: ChatMode;
+  onChatModeChange: (mode: ChatMode) => void;
 }
 
 function UserChatPanel({
@@ -56,13 +60,14 @@ function UserChatPanel({
   selectedConversation,
   messages,
   userId,
-  selectedId,
   input,
   onInputChange,
   onSend,
   loading,
   scrollRef,
   onScrollMessages,
+  chatMode,
+  onChatModeChange,
 }: UserChatPanelProps) {
   const closeViaBack = useMobileChatClose();
 
@@ -87,28 +92,65 @@ function UserChatPanel({
 
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden">
-      <div className="p-3 sm:p-4 border-b border-white/10 flex items-center gap-2 sm:gap-3 bg-[#121212] shrink-0">
-        {showMobileBack && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            onClick={handleBack}
-            aria-label="Back to chats"
+      {/* Header Bar */}
+      <div className="p-3 sm:p-4 border-b border-white/10 flex flex-col gap-2.5 bg-[#121212] shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {showMobileBack && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={handleBack}
+              aria-label="Back to chats"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center shrink-0">
+            {chatMode === "ai" ? <Bot className="h-5 w-5 text-white" /> : <Headphones className="h-5 w-5 text-white" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-semibold text-white truncate">
+              {chatMode === "ai" ? "Spinora AI Assistant" : selectedConversation.title}
+            </h2>
+            <p className="text-xs text-muted-foreground truncate">
+              {chatMode === "ai" ? "Instant 24/7 AI Answers" : selectedConversation.subtitle}
+            </p>
+          </div>
+          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">
+            Live
+          </Badge>
+        </div>
+
+        {/* 🟢 TOGGLE SWITCH: CHATBOT AI vs REAL AGENT */}
+        <div className="grid grid-cols-2 gap-2 bg-[#1a1a1a] p-1 rounded-xl border border-white/10">
+          <button
+            type="button"
+            onClick={() => onChatModeChange("ai")}
+            className={cn(
+              "flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-extrabold transition-all",
+              chatMode === "ai"
+                ? "bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow"
+                : "text-zinc-400 hover:text-white"
+            )}
           >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        )}
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-orange-500 flex items-center justify-center shrink-0">
-          <Headphones className="h-5 w-5 text-white" />
+            <Bot className="size-4" />
+            <span>🤖 AI Chatbot</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onChatModeChange("agent")}
+            className={cn(
+              "flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-extrabold transition-all",
+              chatMode === "agent"
+                ? "bg-purple-500/25 text-purple-300 border border-purple-500/40 shadow"
+                : "text-zinc-400 hover:text-white"
+            )}
+          >
+            <Headphones className="size-4" />
+            <span>🎧 Real Agent</span>
+          </button>
         </div>
-        <div className="flex-1 min-w-0">
-          <h2 className="font-semibold text-white truncate">{selectedConversation.title}</h2>
-          <p className="text-xs text-muted-foreground truncate">{selectedConversation.subtitle}</p>
-        </div>
-        <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shrink-0">
-          Live
-        </Badge>
       </div>
 
       <div
@@ -126,6 +168,8 @@ function UserChatPanel({
         ) : (
           messages.map((msg) => {
             const isOwn = msg.sender_id === userId;
+            const isAi = msg.sender_id === "00000000-0000-0000-0000-000000000000";
+
             return (
               <div key={msg.id} className={cn("flex", isOwn ? "justify-end" : "justify-start")}>
                 <div
@@ -133,16 +177,18 @@ function UserChatPanel({
                     "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm break-words",
                     isOwn
                       ? "gradient-bg text-white rounded-br-md"
+                      : isAi
+                      ? "bg-zinc-800 text-cyan-200 border border-cyan-500/30 rounded-bl-md"
                       : "bg-[#1e1e1e] text-foreground border border-white/5 rounded-bl-md"
                   )}
                 >
                   {!isOwn && (
-                    <p className="text-[10px] font-semibold text-orange-400 mb-1">Support</p>
+                    <p className="text-[10px] font-semibold text-orange-400 mb-1">
+                      {isAi ? "🤖 AI Assistant" : "Support"}
+                    </p>
                   )}
                   <ChatMessageContent message={msg} />
-                  <p className="text-[10px] opacity-60 mt-1.5">
-                    {formatRelativeTime(msg.created_at)}
-                  </p>
+                  <p className="text-[10px] opacity-60 mt-1">{formatRelativeTime(msg.created_at)}</p>
                 </div>
               </div>
             );
@@ -155,10 +201,8 @@ function UserChatPanel({
         onChange={onInputChange}
         onSend={onSend}
         loading={loading}
-        disabled={!selectedId}
-        placeholder="Type a message..."
-        showSendLabel
-        className="bg-[#121212] border-white/10 shrink-0"
+        placeholder={chatMode === "ai" ? "Ask AI Assistant..." : "Type a message..."}
+        className="bg-[#121212] border-white/10 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
       />
     </div>
   );
@@ -166,13 +210,17 @@ function UserChatPanel({
 
 export function UserMessagesInbox({
   initialData,
+  profileUserId,
 }: {
   initialData?: UserMessagesInboxInitialData;
-} = {}) {
-  const dashboardProfile = useDashboardProfile();
+  profileUserId?: string;
+}) {
   const searchParams = useSearchParams();
-  const profileUserId = dashboardProfile?.userId ?? null;
-  const hasServerData = Boolean(initialData?.userId && !initialData.error);
+  const supabase = useMemo(() => createClient(), []);
+  const { refresh: refreshUnread } = useUnreadMessages();
+
+  const [hasServerData] = useState(() => Boolean(initialData?.userId));
+  const [userId, setUserId] = useState<string | null>(() => initialData?.userId ?? null);
   const [conversations, setConversations] = useState<ConversationPreview[]>(
     () => initialData?.conversations ?? []
   );
@@ -180,39 +228,30 @@ export function UserMessagesInbox({
     () => initialData?.selectedConversationId ?? null
   );
   const [messages, setMessages] = useState<Message[]>(() => initialData?.messages ?? []);
-  const [userId, setUserId] = useState<string | null>(
-    () => initialData?.userId ?? profileUserId
-  );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [initLoading, setInitLoading] = useState(!hasServerData && !profileUserId);
+  const [initLoading, setInitLoading] = useState(() => !initialData?.userId);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const supabase = useMemo(() => createClient(), []);
-  const { refresh: refreshUnread } = useUnreadMessages();
-  const mobileChatOpenRef = useRef(mobileChatOpen);
-  const selectedIdRef = useRef<string | null>(null);
-  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initialConversationHandled = useRef(false);
+  const [chatMode, setChatMode] = useState<ChatMode>("ai");
 
-  mobileChatOpenRef.current = mobileChatOpen;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const initialConversationHandled = useRef(false);
+  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedIdRef = useRef<string | null>(selectedId);
   selectedIdRef.current = selectedId;
 
-  const selectedConversation = conversations.find((c) => c.id === selectedId);
-
   const loadConversations = useCallback(async () => {
-    await ensureUserConversation();
+    if (!supabase) return;
     const list = await getUserConversations();
-    setConversations(list);
-    return list;
-  }, []);
+    if (Array.isArray(list)) setConversations(list);
+  }, [supabase]);
 
   const scheduleInboxSync = useCallback(() => {
     if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
     syncDebounceRef.current = setTimeout(() => {
       void refreshUnread();
       void loadConversations();
-    }, 150);
+    }, 200);
   }, [refreshUnread, loadConversations]);
 
   const loadMessages = useCallback(
@@ -258,19 +297,25 @@ export function UserMessagesInbox({
 
     setInitLoading(true);
     try {
-      const result = await initUserMessagesInbox();
+      const data = (await initUserMessagesInbox()) as {
+        userId?: string;
+        conversations?: ConversationPreview[];
+        messages?: Message[];
+        selectedConversationId?: string;
+        error?: string;
+      };
 
-      if (result.error || !result.userId) {
+      if (!data || data.error || !data.userId) {
         return;
       }
 
-      setUserId(result.userId);
-      setConversations(result.conversations ?? []);
-      if (result.selectedConversationId) {
-        setSelectedId(result.selectedConversationId);
-        selectedIdRef.current = result.selectedConversationId;
+      setUserId(data.userId);
+      setConversations(data.conversations ?? []);
+      if (data.selectedConversationId) {
+        setSelectedId(data.selectedConversationId);
+        selectedIdRef.current = data.selectedConversationId;
       }
-      setMessages(result.messages ?? []);
+      setMessages(data.messages ?? []);
       void refreshUnread();
     } finally {
       setInitLoading(false);
@@ -376,24 +421,9 @@ export function UserMessagesInbox({
     };
 
     poll();
-    const interval = setInterval(poll, 800);
+    const interval = setInterval(poll, 1500);
     return () => clearInterval(interval);
   }, [supabase, selectedId]);
-
-  useEffect(() => {
-    function onChatIncoming(event: Event) {
-      const detail = (event as CustomEvent<ChatIncomingDetail>).detail;
-      if (!detail.conversationId) return;
-      if (detail.message) {
-        handleIncomingMessage(detail.message);
-        return;
-      }
-      void openConversation(detail.conversationId);
-    }
-
-    window.addEventListener(CHAT_INCOMING_EVENT, onChatIncoming);
-    return () => window.removeEventListener(CHAT_INCOMING_EVENT, onChatIncoming);
-  }, [openConversation, handleIncomingMessage]);
 
   const messageFingerprint = messages.length > 0 ? messages[messages.length - 1]?.id : "";
   const { onScroll: onScrollMessages } = useChatAutoScroll(
@@ -450,10 +480,27 @@ export function UserMessagesInbox({
       setMessages((prev) => appendMessage(prev, result.message!));
     }
 
+    // IF AI MODE: Call Gemini AI chatbot to respond automatically!
+    if (chatMode === "ai" && content) {
+      try {
+        const aiRes = await askWebsiteAiChatbotAction(content, []);
+        if (aiRes.ok && aiRes.reply) {
+          await sendMessageClient(supabase, {
+            conversationId: selectedId,
+            senderId: "00000000-0000-0000-0000-000000000000",
+            content: aiRes.reply,
+            kind: "admin",
+          });
+        }
+      } catch {}
+    }
+
     setLoading(false);
     scheduleInboxSync();
     return true;
   }
+
+  const selectedConversation = conversations.find((c) => c.id === selectedId);
 
   const chatPanelProps = {
     selectedConversation,
@@ -466,6 +513,8 @@ export function UserMessagesInbox({
     loading,
     scrollRef,
     onScrollMessages,
+    chatMode,
+    onChatModeChange: setChatMode,
   };
 
   if (initLoading) {
@@ -478,92 +527,128 @@ export function UserMessagesInbox({
 
   if (!supabase || !userId) {
     return (
-      <Card className="p-12 text-center">
-        <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-        <h3 className="font-semibold mb-2">Please log in</h3>
-        <p className="text-sm text-muted-foreground">Sign in to message our support team.</p>
+      <Card className={`${CHAT_INBOX_CARD_CLASS} items-center justify-center p-8 text-center`}>
+        <MessageCircle className="h-12 w-12 text-muted-foreground mb-3" />
+        <p className="text-sm font-semibold text-white mb-1">Log in to view your messages</p>
+        <p className="text-xs text-muted-foreground mb-4">
+          Chat with our support team to get help with deposits, cashouts, or game issues.
+        </p>
+        <Button size="sm" asChild>
+          <a href="/login">Log In</a>
+        </Button>
       </Card>
     );
   }
 
   return (
-    <>
-      <Card className={CHAT_INBOX_CARD_CLASS}>
-        <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-1 flex-1 min-h-0 h-full overflow-hidden">
-          <div
-            className={cn(
-              "border-r border-white/10 flex flex-col min-h-0 h-full overflow-hidden bg-[#141414]",
-              mobileChatOpen ? "hidden md:flex" : "flex"
+    <Card className={`${CHAT_INBOX_CARD_CLASS} p-0 overflow-hidden`}>
+      <div className="flex flex-1 min-h-0 h-full">
+        {/* Desktop Sidebar Conversations List */}
+        <div className="w-80 border-r border-white/10 flex flex-col bg-[#141414] shrink-0 hidden md:flex">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <h2 className="font-semibold text-white text-sm">Messages</h2>
+            {conversations.length > 0 && (
+              <Badge variant="secondary" className="text-[10px]">
+                {conversations.length}
+              </Badge>
             )}
-          >
-            <div className="flex flex-col flex-1 min-h-0 h-full overflow-hidden">
-              <div className="p-4 border-b border-white/10 shrink-0">
-                <h2 className="font-semibold text-white">Chats</h2>
-                <p className="text-xs text-muted-foreground">Your conversations</p>
-              </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {conversations.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-8">No messages yet</p>
+            ) : (
+              conversations.map((conv) => {
+                const isSelected = conv.id === selectedId;
+                return (
+                  <button
+                    key={conv.id}
+                    type="button"
+                    onClick={() => selectConversation(conv.id)}
+                    className={cn(
+                      "w-full text-left p-3 rounded-xl transition-colors flex items-start gap-3",
+                      isSelected ? "bg-white/10 text-white" : "hover:bg-white/5 text-muted-foreground"
+                    )}
+                  >
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center shrink-0 font-bold text-white text-xs">
+                      {chatMode === "ai" ? <Bot className="size-4" /> : <Headphones className="size-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <p className="text-xs font-semibold text-white truncate">{conv.title}</p>
+                        {conv.lastMessageAt && (
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {formatRelativeTime(conv.lastMessageAt)}
+                          </span>
+                        )}
+                      </div>
+                      {conv.lastMessage && (
+                        <p className="text-xs text-muted-foreground truncate">{conv.lastMessage}</p>
+                      )}
+                    </div>
+                    {conv.unreadCount > 0 && <UnreadBadge count={conv.unreadCount} />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
 
-              <div className={`${CHAT_SCROLL_CLASS} p-2 space-y-1`}>
+        {/* Chat Panel (Desktop) */}
+        <div className="hidden md:flex flex-1 flex-col min-w-0">
+          <UserChatPanel {...chatPanelProps} />
+        </div>
+
+        {/* Mobile View */}
+        <div className="md:hidden flex-1 flex flex-col min-w-0">
+          <MobileChatShell
+            open={mobileChatOpen}
+            onClose={() => setMobileChatOpen(false)}
+          >
+            <UserChatPanel {...chatPanelProps} showMobileBack onBack={() => setMobileChatOpen(false)} />
+          </MobileChatShell>
+
+          {!mobileChatOpen && (
+            <div className="flex-1 flex flex-col p-3 space-y-2 overflow-y-auto">
               {conversations.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8 px-4">
-                  No chats yet. Start one with our support team below.
-                </p>
+                <div className="text-center py-12">
+                  <MessageCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground mb-3">No message history</p>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      void ensureUserConversation().then((res) => {
+                        if (res.conversationId) void openConversation(res.conversationId);
+                      });
+                    }}
+                  >
+                    Start Chat
+                  </Button>
+                </div>
               ) : (
                 conversations.map((conv) => (
                   <button
                     key={conv.id}
                     type="button"
                     onClick={() => selectConversation(conv.id)}
-                    className={cn(
-                      "w-full text-left p-3 rounded-xl transition-colors border",
-                      selectedId === conv.id
-                        ? "bg-white/10 border-orange-500/30"
-                        : "border-transparent hover:bg-white/5"
-                    )}
+                    className="w-full text-left p-3.5 rounded-xl border border-white/10 bg-[#161616] flex items-center gap-3"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-600 to-orange-500 flex items-center justify-center shrink-0">
-                        <Headphones className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-0.5">
-                          <span className="font-semibold text-sm text-white truncate">{conv.title}</span>
-                          {conv.lastMessageAt && (
-                            <span className="text-[10px] text-muted-foreground shrink-0">
-                              {formatRelativeTime(conv.lastMessageAt)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground truncate flex-1">{conv.lastMessage}</p>
-                          <UnreadBadge count={conv.unreadCount} />
-                        </div>
-                      </div>
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center shrink-0 text-white font-bold text-sm">
+                      {chatMode === "ai" ? <Bot className="size-5" /> : <Headphones className="size-5" />}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{conv.title}</p>
+                      {conv.lastMessage && (
+                        <p className="text-xs text-muted-foreground truncate">{conv.lastMessage}</p>
+                      )}
+                    </div>
+                    {conv.unreadCount > 0 && <UnreadBadge count={conv.unreadCount} />}
                   </button>
                 ))
               )}
-              </div>
             </div>
-          </div>
-
-          {/* Desktop chat panel */}
-          <div className="hidden md:flex md:col-span-2 flex-col min-h-0 h-full overflow-hidden">
-            <UserChatPanel {...chatPanelProps} />
-          </div>
+          )}
         </div>
-      </Card>
-
-      {/* Mobile full-screen chat — portaled to body so composer is never clipped */}
-      <MobileChatShell
-        open={mobileChatOpen && !!selectedConversation}
-        onClose={() => setMobileChatOpen(false)}
-      >
-        <UserChatPanel
-          {...chatPanelProps}
-          showMobileBack
-          onBack={() => setMobileChatOpen(false)}
-        />
-      </MobileChatShell>
-    </>
+      </div>
+    </Card>
   );
 }
