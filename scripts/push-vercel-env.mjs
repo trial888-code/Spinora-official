@@ -16,9 +16,6 @@ for (const line of raw.split("\n")) {
   vars[key] = rawVal.replace(/^["']|["']$/g, "");
 }
 
-vars.NEXT_PUBLIC_SITE_URL = "https://final-file-omega.vercel.app";
-vars.NEXT_PUBLIC_APP_URL = "https://final-file-omega.vercel.app";
-
 const envs = ["production", "preview", "development"];
 
 for (const [name, value] of Object.entries(vars)) {
