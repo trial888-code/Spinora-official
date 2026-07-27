@@ -34,8 +34,7 @@ async function legacySpinoraAdminContext(
     .eq("id", userId)
     .maybeSingle();
 
-  const isDev = process.env.NODE_ENV === "development";
-  const isAdminRole = profile?.role === "admin" || !profile || isDev;
+  const isAdminRole = profile?.role === "admin";
 
   if (!isAdminRole) return null;
 

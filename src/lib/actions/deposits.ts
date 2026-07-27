@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getDepositMethod, type DepositPaymentMethodId } from "@/lib/payments/methods";
 import { notifyAdminOfDeposit } from "@/lib/telegram/notify-admin-deposit";
 import { createNotification } from "@/lib/actions/notifications";
+import { creditUserWallet } from "@/lib/actions/wallet";
 import type { RequestStatus } from "@/types/database";
 
 export interface DepositRequestRow {
@@ -165,24 +166,18 @@ export async function updateDepositStatus(
     });
 
     if (rpcError) {
-      console.warn("[updateDepositStatus] RPC failed, applying direct wallet credit fallback:", rpcError.message);
+      console.warn("[updateDepositStatus] RPC failed, applying atomic wallet credit fallback:", rpcError.message);
 
-      const { data: userProfile } = await db
-        .from("profiles")
-        .select("wallet_balance")
-        .eq("id", existing.user_id)
-        .single();
+      const creditRes = await creditUserWallet(
+        existing.user_id,
+        amount,
+        "current",
+        "deposit_approval_fallback",
+        `Confirmed deposit fallback (${existing.game_name})`
+      );
 
-      const currentBal = Number(userProfile?.wallet_balance ?? 0);
-      const newBalance = Math.round((currentBal + amount) * 100) / 100;
-
-      const { error: updateBalErr } = await db
-        .from("profiles")
-        .update({ wallet_balance: newBalance })
-        .eq("id", existing.user_id);
-
-      if (updateBalErr) {
-        return { error: `Failed to update user wallet: ${updateBalErr.message}` };
+      if (creditRes.error) {
+        return { error: `Failed to update user wallet: ${creditRes.error}` };
       }
 
       await db

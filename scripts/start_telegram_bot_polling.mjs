@@ -233,13 +233,17 @@ async function handleCallbackQuery(cb) {
     }
 
     const amt = Number(meta.amount || order?.amount || 10.0);
-    const userId = order?.user_id || "c1931a25-745b-42aa-a3d4-857d267cdf31";
+    const userId = order?.user_id || meta?.userId || null;
     const targetGroupChatId = meta.groupChatId;
     const platformName = meta.platformName || "CashApp";
 
-    try {
-      await db.rpc("admin_adjust_user_wallet", { p_user_id: userId, p_wallet_balance: amt });
-    } catch {}
+    if (userId) {
+      try {
+        await db.rpc("admin_adjust_user_wallet", { p_user_id: userId, p_wallet_balance: amt });
+      } catch (err) {
+        console.error("Wallet adjustment error:", err.message);
+      }
+    }
 
     const calc = addDepositToGroupTotal(targetGroupChatId, amt);
 

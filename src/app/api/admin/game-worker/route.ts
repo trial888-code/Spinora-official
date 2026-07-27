@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
+import { isAuthError, requireStaffApi } from "@/lib/api/admin-auth";
 import { getGameWorkerStatus, toggleGameWorker, processPendingGameWorkerQueue } from "@/lib/game-automation/game-worker-engine";
 
 export async function GET() {
+  const auth = await requireStaffApi("requests.manage");
+  if (isAuthError(auth)) return auth;
   const status = getGameWorkerStatus();
   return NextResponse.json(status);
 }
 
 export async function POST(req: Request) {
+  const auth = await requireStaffApi("requests.manage");
+  if (isAuthError(auth)) return auth;
+
   try {
     const { action, enable } = await req.json();
 

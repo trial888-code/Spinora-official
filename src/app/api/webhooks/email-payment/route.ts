@@ -14,7 +14,12 @@ export async function POST(req: Request) {
     const secret = req.headers.get("x-webhook-secret") || body.secret;
     const expectedSecret = process.env.EMAIL_WEBHOOK_SECRET;
 
-    if (expectedSecret && secret !== expectedSecret) {
+    if (!expectedSecret) {
+      console.error("❌ EMAIL_WEBHOOK_SECRET missing in environment config.");
+      return NextResponse.json({ ok: false, error: "Webhook secret unconfigured" }, { status: 500 });
+    }
+
+    if (secret !== expectedSecret) {
       return NextResponse.json({ ok: false, error: "Unauthorized webhook secret" }, { status: 401 });
     }
 
@@ -46,16 +51,40 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Record in wallet_transactions for email double-verification matcher
+    const targetUserId = matchedDep?.user_id || body.userId || null;
+
+    if (!targetUserId) {
+      // Record unassigned payment in payment_orders for admin review
+      const { data: order } = await db
+        .from("payment_orders")
+        .insert({
+          amount: numAmount,
+          platform: platformName,
+          status: "pending_admin_review",
+          memo: `Unassigned email deposit from ${sender || "Bank"}: $${numAmount.toFixed(2)} (Tx: ${transactionId || "N/A"})`,
+        })
+        .select("id")
+        .single();
+
+      return NextResponse.json({
+        ok: true,
+        message: "Email payment received but no matching user found. Queued for admin review.",
+        amount: numAmount,
+        orderId: order?.id,
+        status: "UNASSIGNED_EMAIL_DEPOSIT",
+      });
+    }
+
+    // 2. Record in wallet_transactions for matched user
     const { data: tx } = await db
       .from("wallet_transactions")
       .insert({
-        user_id: matchedDep?.user_id || "c1931a25-745b-42aa-a3d4-857d267cdf31",
+        user_id: targetUserId,
         amount: numAmount,
         wallet_type: "cash",
         transaction_type: "credit",
         source: `email_webhook_${platformName}`,
-        description: `Verified email deposit from ${sender || "CashApp"}: $${numAmount.toFixed(2)}`,
+        description: `Verified email deposit from ${sender || "Bank"}: $${numAmount.toFixed(2)}`,
       })
       .select("id")
       .single();

@@ -44,13 +44,15 @@ export async function POST(req: Request) {
     const sigHeader = req.headers.get("x-nowpayments-sig");
     const ipnSecret = process.env.NOWPAYMENTS_IPN_SECRET;
 
-    // Validate IPN Signature if secret is configured
-    if (ipnSecret) {
-      const isValid = verifyNowPaymentsSignature(rawBody, sigHeader, ipnSecret);
-      if (!isValid) {
-        console.warn("⚠️ Invalid NOWPayments IPN Signature rejected.");
-        return NextResponse.json({ ok: false, error: "Invalid HMAC signature" }, { status: 401 });
-      }
+    if (!ipnSecret) {
+      console.error("❌ NOWPAYMENTS_IPN_SECRET missing in environment config.");
+      return NextResponse.json({ ok: false, error: "Webhook secret unconfigured" }, { status: 500 });
+    }
+
+    const isValid = verifyNowPaymentsSignature(rawBody, sigHeader, ipnSecret);
+    if (!isValid) {
+      console.warn("⚠️ Invalid NOWPayments IPN Signature rejected.");
+      return NextResponse.json({ ok: false, error: "Invalid HMAC signature" }, { status: 401 });
     }
 
     const payload = JSON.parse(rawBody);

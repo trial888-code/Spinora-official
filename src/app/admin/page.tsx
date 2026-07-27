@@ -134,7 +134,7 @@ export default async function AdminOverviewPage() {
               <Zap className="h-5 w-5 text-amber-400" />
               1-Click Admin Quick Controls
             </h2>
-            <p className="text-xs text-muted-foreground">Easy shortcuts to manage payments, AI tools, Telegram bot, and players without technical code.</p>
+            <p className="text-xs text-muted-foreground">Easy shortcuts to manage payments, AI tools, website chatbot, and players without technical code.</p>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
             Easy Admin View
@@ -152,10 +152,10 @@ export default async function AdminOverviewPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-foreground">AI Payment Verification & Telegram</p>
+                <p className="text-sm font-bold text-foreground">AI Payment Verification & OCR</p>
                 <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full font-bold">1-Click Control</span>
               </div>
-              <p className="text-xs text-muted-foreground">Verify screenshots, approve deposits & broadcast Telegram promos</p>
+              <p className="text-xs text-muted-foreground">Verify receipt screenshots, exact cents matching & CashApp anti-fraud checks</p>
             </div>
           </Link>
 
@@ -212,15 +212,15 @@ export default async function AdminOverviewPage() {
           </Link>
 
           <Link
-            href="/admin/telegram"
+            href="/admin/ai-chatbot"
             className="flex items-center gap-3 p-3 rounded-lg border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 transition-all group"
           >
             <div className="flex size-10 items-center justify-center rounded-lg bg-sky-500/30 text-sky-300 group-hover:scale-110 transition-transform">
-              🚀
+              🤖
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground">Telegram Bot Autopilot</p>
-              <p className="text-xs text-muted-foreground">Bot status & broadcasts</p>
+              <p className="text-sm font-bold text-foreground">Website AI Chatbot</p>
+              <p className="text-xs text-muted-foreground">FAQs & Gemini AI NLU</p>
             </div>
           </Link>
 
@@ -299,12 +299,9 @@ export default async function AdminOverviewPage() {
                     {profileHandle(u)}
                   </span>
                 </span>
-                <time
-                  dateTime={u.created_at}
-                  className="text-xs text-muted-foreground"
-                >
-                  {formatDistanceToNow(new Date(u.created_at!), { addSuffix: true })}
-                </time>
+                <span className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(u.created_at), { addSuffix: true })}
+                </span>
               </li>
             ))}
           </ul>
@@ -312,38 +309,29 @@ export default async function AdminOverviewPage() {
 
         <GlassCard className="p-6">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold">Latest support tickets</h2>
+            <h2 className="font-bold">Recent support tickets</h2>
             <Link
               href="/admin/chat"
               className="inline-flex items-center gap-1 text-xs font-medium text-cyan-400 underline-offset-4 hover:underline"
             >
-              Live Chat & Support
+              Open Inbox
               <ArrowRight className="size-3.5" aria-hidden />
             </Link>
           </div>
           <ul className="mt-4 divide-y divide-foreground/8">
-            {(recentTickets.data ?? []).length === 0 ? (
-              <li className="py-2.5 text-sm text-muted-foreground">
-                No open tickets. All player support chats clear!
+            {(recentTickets.data ?? []).map((t) => (
+              <li key={t.id} className="flex items-center justify-between py-2.5">
+                <div className="min-w-0 pr-2">
+                  <p className="text-sm font-medium truncate">{t.subject || `Ticket #${t.ticket_no}`}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(t.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+                <span className="text-xs font-semibold uppercase px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 shrink-0">
+                  {t.status}
+                </span>
               </li>
-            ) : (
-              (recentTickets.data ?? []).map((t) => (
-                <li key={t.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <Link
-                    href="/admin/chat"
-                    className="min-w-0 flex-1 truncate text-sm font-medium hover:text-emerald-400"
-                  >
-                    <span className="tnum text-xs text-muted-foreground">
-                      #{t.ticket_no}
-                    </span>{" "}
-                    {t.subject}
-                  </Link>
-                  <span className="shrink-0 text-xs text-muted-foreground uppercase font-bold">
-                    {t.status}
-                  </span>
-                </li>
-              ))
-            )}
+            ))}
           </ul>
         </GlassCard>
       </div>

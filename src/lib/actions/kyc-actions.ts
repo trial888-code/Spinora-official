@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getStaffContext } from "@/lib/data/admin";
 
 export interface KYCSubmissionRecord {
   id: string;
@@ -133,6 +134,9 @@ export async function getKYCSystemStatus(): Promise<{ ready: boolean; error?: st
 }
 
 export async function getAdminKYCSubmissions(): Promise<KYCSubmissionRecord[]> {
+  const staff = await getStaffContext();
+  if (!staff) return [];
+
   const admin = createAdminClient();
   if (!admin) return [];
 
@@ -159,6 +163,11 @@ export async function updateKYCStatus(
   submissionIdOrUserId: string,
   newStatus: "approved" | "rejected"
 ): Promise<{ ok: boolean; error?: string }> {
+  const staff = await getStaffContext();
+  if (!staff) {
+    return { ok: false, error: "Unauthorized: Staff permission required." };
+  }
+
   const admin = createAdminClient();
   if (!admin) return { ok: false, error: "Server configuration error." };
 

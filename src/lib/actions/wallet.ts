@@ -170,38 +170,36 @@ async function attachProfilesToTransactions(
   }));
 }
 
-/** Fetch every stored wallet transaction for admin (paginated server-side). */
-export async function getAdminAllTransactions(): Promise<
-  { transactions: AdminTransactionRow[] } | { error: string }
-> {
+/** Fetch wallet transactions for admin (paginated server-side). */
+export async function getAdminAllTransactions(
+  page = 1,
+  limit = 100
+): Promise<{ transactions: AdminTransactionRow[]; totalCount?: number } | { error: string }> {
   const auth = await requireAdmin();
   if (auth.error) return { error: auth.error };
 
-  const BATCH = 1000;
-  const rows: Array<Record<string, unknown>> = [];
-  let from = 0;
+  const fetchLimit = Math.min(Math.max(1, limit), 500);
+  const from = (Math.max(1, page) - 1) * fetchLimit;
+  const to = from + fetchLimit - 1;
 
-  while (true) {
-    const { data, error } = await auth.supabase!
-      .from("wallet_transactions")
-      .select(ADMIN_TX_SELECT)
-      .order("created_at", { ascending: false })
-      .range(from, from + BATCH - 1);
+  const { data, error, count } = await auth.supabase!
+    .from("wallet_transactions")
+    .select(ADMIN_TX_SELECT, { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
-    if (error) {
-      if (error.message.includes("wallet_transactions")) {
-        return { error: "Run supabase/wallets.sql in Supabase." };
-      }
-      return { error: error.message };
+  if (error) {
+    if (error.message.includes("wallet_transactions")) {
+      return { error: "Run supabase/wallets.sql in Supabase." };
     }
-    if (!data?.length) break;
-    rows.push(...(data as Array<Record<string, unknown>>));
-    if (data.length < BATCH) break;
-    from += BATCH;
+    return { error: error.message };
   }
 
-  const transactions = await attachProfilesToTransactions(auth.supabase!, rows);
-  return { transactions };
+  const transactions = await attachProfilesToTransactions(
+    auth.supabase!,
+    (data ?? []) as Array<Record<string, unknown>>
+  );
+  return { transactions, totalCount: count ?? transactions.length };
 }
 
 export interface AdminTransactionUser {

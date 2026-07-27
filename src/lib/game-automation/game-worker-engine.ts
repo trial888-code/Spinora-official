@@ -42,36 +42,36 @@ export async function processPendingGameWorkerQueue(): Promise<{ ok: boolean; pr
   try {
     const admin = createAdminClient();
     if (admin) {
-      // 1. Fetch pending game load requests for Juwa, Fire Kirin, Game Vault, etc.
-      const { data: pendingRequests } = await admin
-        .from("game_load_requests")
-        .select("id, user_id, game_id, load_type, amount, status")
-        .eq("status", "pending")
-        .limit(10);
+      const supportedSlugs = workerState.supportedGames;
 
-      if (pendingRequests && pendingRequests.length > 0) {
-        for (const req of pendingRequests) {
-          // Process account creation or load
-          const gameSlug = req.game_id || "juwa";
-          const mockUsername = ensureGameAccountUsername(req.user_id || "demo_player", gameSlug);
-          const mockPassword = `Pass_${Math.floor(1000 + Math.random() * 9000)}`;
+      for (const gameSlug of supportedSlugs) {
+        // Claim pending job using claim_next_game_load RPC
+        const { data: claimed } = await admin.rpc("claim_next_game_load", { p_game_slug: gameSlug });
+        const job = Array.isArray(claimed) ? claimed[0] : claimed;
 
-          // Auto-Approve request
-          await admin
-            .from("game_load_requests")
-            .update({
-              status: "approved",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", req.id);
+        if (job && job.id) {
+          const gameUsername = ensureGameAccountUsername(job.user_id || "player", gameSlug);
+          const gamePassword = `Pass_${Math.floor(1000 + Math.random() * 9000)}`;
 
-          // Send confirmation Telegram alert
-          await sendTelegramMessage(
-            `🎮 <b>GAME BOT WORKER FULFILLED</b>\nPlatform: <b>${gameSlug.toUpperCase()}</b>\nPlayer ID: <code>${req.user_id}</code>\nCredentials: Username <code>${mockUsername}</code> | Pass <code>${mockPassword}</code>\nAmount: <b>$${req.amount || 10}.00</b>`,
-            { channel: "admin" }
-          ).catch(() => null);
+          // Complete job via RPC
+          const { error: completeErr } = await admin.rpc("complete_game_load", {
+            p_request_id: job.id,
+            p_success: true,
+            p_game_username: gameUsername,
+            p_game_password: gamePassword,
+            p_error_message: null,
+            p_redeemed_amount: Number(job.amount || 0),
+          });
 
-          processedCount++;
+          if (!completeErr) {
+            // Send confirmation Telegram alert
+            await sendTelegramMessage(
+              `🎮 <b>GAME BOT WORKER FULFILLED</b>\nPlatform: <b>${gameSlug.toUpperCase()}</b>\nPlayer ID: <code>${job.user_id}</code>\nCredentials: Username <code>${gameUsername}</code> | Pass <code>${gamePassword}</code>\nAmount: <b>$${job.amount || 10}.00</b>`,
+              { channel: "admin" }
+            ).catch(() => null);
+
+            processedCount++;
+          }
         }
       }
     }
@@ -79,16 +79,13 @@ export async function processPendingGameWorkerQueue(): Promise<{ ok: boolean; pr
     console.error("[Game Worker Error]", err);
   }
 
-  // Fallback demo processing count if database empty
-  if (processedCount === 0) {
-    processedCount = 1;
-  }
-
   workerState.totalFulfilledRequests += processedCount;
 
   return {
     ok: true,
     processedCount,
-    message: `Game Worker processed ${processedCount} pending request(s) for Juwa 777 & game platforms!`,
+    message: processedCount > 0 
+      ? `Game Worker processed ${processedCount} pending request(s) for game platforms!`
+      : `No pending game load requests in queue.`,
   };
 }

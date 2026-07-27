@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { notifyAdminOfCustomerMessage } from "@/lib/telegram/notify-admin-message";
 import { messagePreview } from "@/lib/chat/message-preview";
+import { getStaffContext } from "@/lib/data/admin";
 import type { Message } from "@/types/database";
 
 export interface ConversationPreview {
@@ -322,19 +323,10 @@ export interface AdminConversationUnread {
 }
 
 export async function getAdminUnreadMessageCount(): Promise<number> {
+  const staff = await getStaffContext();
+  if (!staff) return 0;
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return 0;
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") return 0;
 
   const { data: conversations } = await supabase
     .from("conversations")
@@ -351,25 +343,16 @@ export async function getAdminUnreadMessageCount(): Promise<number> {
       conversations.map((c) => c.id)
     )
     .eq("is_read", false)
-    .neq("sender_id", user.id);
+    .neq("sender_id", staff.userId);
 
   return count ?? 0;
 }
 
 export async function getAdminConversationUnreads(): Promise<AdminConversationUnread[]> {
+  const staff = await getStaffContext();
+  if (!staff) return [];
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return [];
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") return [];
 
   const { data: conversations } = await supabase
     .from("conversations")
@@ -387,7 +370,7 @@ export async function getAdminConversationUnreads(): Promise<AdminConversationUn
       .select("conversation_id")
       .in("conversation_id", convIds)
       .eq("is_read", false)
-      .neq("sender_id", user.id),
+      .neq("sender_id", staff.userId),
     supabase
       .from("messages")
       .select("conversation_id, content, attachment_type, created_at")

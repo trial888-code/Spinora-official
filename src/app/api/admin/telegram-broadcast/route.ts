@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendTelegramMessage } from "@/lib/services/telegram-bot";
+import { isAuthError, requireStaffApi } from "@/lib/api/admin-auth";
 
 function getDb() {
   return createClient(
@@ -10,6 +11,9 @@ function getDb() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireStaffApi("cms.manage");
+  if (isAuthError(auth)) return auth;
+
   try {
     const body = await req.json();
     const { message, chatIds, campaignType } = body;
