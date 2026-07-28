@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { GlassCard } from "@/components/shared/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Flame, Gift, Lock, CheckCircle2, Sparkles } from "lucide-react";
+import { Flame, Gift, Lock, CheckCircle2, Sparkles, Loader2 } from "lucide-react";
+import { claimRewardAction } from "@/lib/actions/rewards";
 
 interface StreakDay {
   day: number;
@@ -28,14 +29,35 @@ const STREAK_DAYS: StreakDay[] = [
 export function StreakCalendarCard() {
   const [days, setDays] = useState<StreakDay[]>(STREAK_DAYS);
   const [streakCount, setStreakCount] = useState(2);
+  const [pending, startTransition] = useTransition();
+  const [alreadyClaimed, setAlreadyClaimed] = useState(false);
 
   function handleClaimToday() {
-    setDays((prev) =>
-      prev.map((d) => (d.isCurrent ? { ...d, claimed: true, isCurrent: false } : d))
-    );
-    setStreakCount((c) => c + 1);
-    toast.success("🔥 Day 3 Streak Claimed! $10 Freeplay added to your wallet.");
+    startTransition(async () => {
+      const res = await claimRewardAction("daily_login");
+      if (!res.ok) {
+        toast.error(res.error || "You have already claimed today's streak reward!");
+        setAlreadyClaimed(true);
+        setDays((prev) =>
+          prev.map((d) => (d.isCurrent ? { ...d, claimed: true, isCurrent: false } : d))
+        );
+        return;
+      }
+
+      setDays((prev) =>
+        prev.map((d) => (d.isCurrent ? { ...d, claimed: true, isCurrent: false } : d))
+      );
+      setStreakCount((c) => c + 1);
+      setAlreadyClaimed(true);
+      toast.success(`🔥 Streak Reward Claimed! +${res.coins} Coins & +${res.xp} XP added to your account.`);
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("wallet:refresh"));
+      }
+    });
   }
+
+  const currentDay = days.find((d) => d.isCurrent);
 
   return (
     <GlassCard className="p-6 border-amber-500/40 bg-gradient-to-r from-amber-950/30 via-background to-black">
@@ -59,10 +81,17 @@ export function StreakCalendarCard() {
 
         <Button
           onClick={handleClaimToday}
-          className="bg-amber-500 text-black hover:bg-amber-400 font-extrabold text-xs py-6 px-6 rounded-2xl shadow-xl shadow-amber-500/25 gap-2 shrink-0"
+          disabled={pending || alreadyClaimed || !currentDay}
+          className="bg-amber-500 text-black hover:bg-amber-400 font-extrabold text-xs py-6 px-6 rounded-2xl shadow-xl shadow-amber-500/25 gap-2 shrink-0 disabled:opacity-50"
         >
-          <Sparkles className="h-4 w-4" />
-          Claim Today's Day 3 Reward ($10)
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          {alreadyClaimed
+            ? "Already Claimed Today"
+            : `Claim Today's Day ${currentDay?.day ?? 3} Reward (${currentDay?.reward ?? "$10"})`}
         </Button>
       </div>
 
@@ -99,7 +128,7 @@ export function StreakCalendarCard() {
             {item.claimed && (
               <Badge className="bg-emerald-500/20 text-emerald-300 text-[9px] mt-2">Claimed</Badge>
             )}
-            {item.isCurrent && (
+            {item.isCurrent && !item.claimed && (
               <Badge className="bg-amber-500 text-black text-[9px] font-extrabold mt-2">Ready</Badge>
             )}
           </div>

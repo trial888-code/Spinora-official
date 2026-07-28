@@ -12,17 +12,32 @@ export async function claimRewardAction(ruleKey: string) {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: "Not signed in." };
 
-  // Enforce 24-Hour Cooldown Check for Daily Claims
+  // 1. Check profiles.last_daily_claim for today
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("last_daily_claim, vip_points")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.last_daily_claim === todayStr) {
+    return {
+      ok: false as const,
+      error: "You have already claimed your daily reward today! Next claim opens in 24 hours.",
+    };
+  }
+
+  // 2. Check 24-Hour Cooldown in activity_log or wallet_transactions
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data: recentClaims } = await supabase
-    .from("wallet_transactions")
-    .select("id, created_at")
+  const { data: recentActivity } = await supabase
+    .from("activity_log")
+    .select("id")
     .eq("user_id", user.id)
-    .eq("source", "reward_claim")
+    .eq("action", "reward_claimed")
     .gte("created_at", oneDayAgo)
     .limit(1);
 
-  if (recentClaims && recentClaims.length > 0) {
+  if (recentActivity && recentActivity.length > 0) {
     return {
       ok: false as const,
       error: "You have already claimed your daily reward today! Next claim opens in 24 hours.",
@@ -31,8 +46,19 @@ export async function claimRewardAction(ruleKey: string) {
 
   let { data, error } = await supabase.rpc("claim_reward", { rule_key: ruleKey });
 
-  // Direct table update fallback if RPC function is missing in schema cache
+  // If RPC returned "already claimed" or "account suspended", block immediately with real error
   if (error) {
+    const errLower = error.message.toLowerCase();
+    if (errLower.includes("already claimed") || errLower.includes("p0002") || errLower.includes("suspended")) {
+      return {
+        ok: false as const,
+        error: "You have already claimed your daily reward today! Next claim opens in 24 hours.",
+      };
+    }
+  }
+
+  // Only fallback if RPC function claim_reward is completely missing in database schema
+  if (error && (error.message.includes("function") || error.message.includes("schema cache") || error.message.includes("does not exist"))) {
     const coinsAwarded = 100;
     const xpAwarded = 50;
 
@@ -48,33 +74,33 @@ export async function claimRewardAction(ruleKey: string) {
       error = null;
       data = [{ coins_awarded: coinsAwarded, xp_awarded: xpAwarded, multiplier: 1 }];
 
-      // Increment VIP points on profile
-      const { data: profile } = await supabase
+      await supabase
         .from("profiles")
-        .select("vip_points")
-        .eq("id", user.id)
-        .single();
-      if (profile) {
-        await supabase
-          .from("profiles")
-          .update({ vip_points: (profile.vip_points ?? 0) + xpAwarded })
-          .eq("id", user.id);
-      }
+        .update({
+          vip_points: (profile?.vip_points ?? 0) + xpAwarded,
+          last_daily_claim: todayStr,
+        })
+        .eq("id", user.id);
     }
   }
 
   if (error) {
-    return { ok: false as const, error: error.message };
+    return {
+      ok: false as const,
+      error: "You have already claimed your daily reward today! Next claim opens in 24 hours.",
+    };
   }
 
   const row = Array.isArray(data) ? data[0] : data;
   const coinsAwarded = Number(row?.coins_awarded ?? 100);
   const xpAwarded = Number(row?.xp_awarded ?? 50);
 
-  // Record activity log (wallet transaction is already created by RPC or creditUserWallet)
+  // Record activity log & update last_daily_claim
   try {
     const adminDb = createAdminClient();
     const dbClient = adminDb ?? supabase;
+
+    await dbClient.from("profiles").update({ last_daily_claim: todayStr }).eq("id", user.id);
 
     await dbClient.from("activity_log").insert({
       user_id: user.id,
@@ -87,6 +113,7 @@ export async function claimRewardAction(ruleKey: string) {
   revalidatePath("/dashboard/rewards");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/activity");
+  revalidatePath("/spin");
   return {
     ok: true as const,
     coins: coinsAwarded,
@@ -103,15 +130,15 @@ export async function claimPromotionAction(slug: string, code?: string) {
   if (!user) return { ok: false as const, error: "Not signed in." };
 
   // Enforce 1-Claim-Per-Promotion Check
-  const { data: existingClaims } = await supabase
-    .from("wallet_transactions")
+  const { data: existingLogs } = await supabase
+    .from("activity_log")
     .select("id")
     .eq("user_id", user.id)
-    .eq("source", "promotion_claim")
+    .eq("action", "promotion_claimed")
     .ilike("description", `%${slug}%`)
     .limit(1);
 
-  if (existingClaims && existingClaims.length > 0) {
+  if (existingLogs && existingLogs.length > 0) {
     return {
       ok: false as const,
       error: "You have already claimed this bonus promotion!",
@@ -124,6 +151,16 @@ export async function claimPromotionAction(slug: string, code?: string) {
   });
 
   if (error) {
+    const errLower = error.message.toLowerCase();
+    if (errLower.includes("already claimed") || errLower.includes("p0002") || errLower.includes("suspended")) {
+      return {
+        ok: false as const,
+        error: "You have already claimed this bonus promotion!",
+      };
+    }
+  }
+
+  if (error && (error.message.includes("function") || error.message.includes("schema cache") || error.message.includes("does not exist"))) {
     const coinsAwarded = 250;
     const xpAwarded = 100;
 
@@ -154,7 +191,7 @@ export async function claimPromotionAction(slug: string, code?: string) {
   }
 
   if (error) {
-    return { ok: false as const, error: error.message };
+    return { ok: false as const, error: "You have already claimed this bonus promotion!" };
   }
 
   const row = Array.isArray(data) ? data[0] : data;
@@ -164,15 +201,6 @@ export async function claimPromotionAction(slug: string, code?: string) {
   try {
     const adminDb = createAdminClient();
     const dbClient = adminDb ?? supabase;
-
-    await dbClient.from("wallet_transactions").insert({
-      user_id: user.id,
-      amount: coinsAwarded,
-      wallet_type: "bonus",
-      transaction_type: "credit",
-      source: "promotion_claim",
-      description: `Claimed Promotion ${slug} (+${coinsAwarded} Coins, +${xpAwarded} XP)`,
-    });
 
     await dbClient.from("activity_log").insert({
       user_id: user.id,
