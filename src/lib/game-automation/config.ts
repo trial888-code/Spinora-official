@@ -47,6 +47,22 @@ export function getMafiaAdminPanelUrl(): string | null {
   return process.env.MAFIA_ADMIN_URL?.trim() || "https://agentserver.mafia77777.com/admin/login";
 }
 
+export function getFireKirinAdminPanelUrl(): string | null {
+  return process.env.FIREKIRIN_ADMIN_URL?.trim() || "http://agent.firekirin.xyz:8580/admin/login";
+}
+
+export function getOrionStarsAdminPanelUrl(): string | null {
+  return process.env.ORIONSTARS_ADMIN_URL?.trim() || "http://agent.orionstars.vip:8580/admin/login";
+}
+
+export function getPandaMasterAdminPanelUrl(): string | null {
+  return process.env.PANDAMASTER_ADMIN_URL?.trim() || "https://agent.pandamaster.vip:8888/admin/login";
+}
+
+export function getMilkyWayAdminPanelUrl(): string | null {
+  return process.env.MILKYWAY_ADMIN_URL?.trim() || "https://agent.milkywayapp.xyz/admin/login";
+}
+
 export function getAutomationSecret(): string | null {
   return process.env.GAME_AUTOMATION_SECRET?.trim() || null;
 }

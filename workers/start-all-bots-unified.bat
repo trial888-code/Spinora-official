@@ -49,8 +49,20 @@ start "Spinora Mafia Bot" cmd /k "cd /d "%ROOT%mafia-bot" && set MAFIA_CDP_URL=%
 timeout /t 1 /nobreak >nul
 
 start "Spinora Cash Frenzy Bot" cmd /k "cd /d "%ROOT%cash-frenzy-bot" && set CASHFRENZY_CDP_URL=%CDP% && set CASHFRENZY_HEADLESS=false && call npm start"
+timeout /t 1 /nobreak >nul
+
+start "Spinora Fire Kirin Bot" cmd /k "cd /d "%ROOT%firekirin-bot" && set FIREKIRIN_CDP_URL=%CDP% && set FIREKIRIN_HEADLESS=false && call npm start"
+timeout /t 1 /nobreak >nul
+
+start "Spinora Orion Stars Bot" cmd /k "cd /d "%ROOT%orionstars-bot" && set ORIONSTARS_CDP_URL=%CDP% && set ORIONSTARS_HEADLESS=false && call npm start"
+timeout /t 1 /nobreak >nul
+
+start "Spinora Panda Master Bot" cmd /k "cd /d "%ROOT%pandamaster-bot" && set PANDAMASTER_CDP_URL=%CDP% && set PANDAMASTER_HEADLESS=false && call npm start"
+timeout /t 1 /nobreak >nul
+
+start "Spinora Milky Way Bot" cmd /k "cd /d "%ROOT%milkyway-bot" && set MILKYWAY_CDP_URL=%CDP% && set MILKYWAY_HEADLESS=false && call npm start"
 
 echo.
-echo   8 bots running — all attached to one Chrome on port 9222.
+echo   12 bots running — all attached to one Chrome on port 9222.
 echo.
 pause
