@@ -572,7 +572,11 @@ export function GameWalletLoadSection({
     if (result.error) toast.error(result.error);
     else {
       if (result.requestId) pendingJobIdsRef.current.add(result.requestId);
-      toast.success(`Load queued! $${parsedAmount.toFixed(2)} — bot will credit ${game.name} shortly.`);
+      if (result.creditAmount && result.bonusLabel) {
+        toast.success(`Load queued! ${result.bonusLabel}: $${parsedAmount.toFixed(2)} cash → $${result.creditAmount.toFixed(2)} total game credits!`);
+      } else {
+        toast.success(`Load queued! $${parsedAmount.toFixed(2)} — bot will credit ${game.name} shortly.`);
+      }
       void refreshWallet();
       void refreshLoads();
     }

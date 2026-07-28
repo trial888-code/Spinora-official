@@ -18,75 +18,7 @@ function isMissingRpcError(message: string): boolean {
   return /could not find the function|schema cache|function.*does not exist/i.test(message);
 }
 
-/** Queue a wallet load when Supabase RPC is missing/outdated (bot still picks up pending rows). */
-async function queueGameLoadAdminFallback(
-  userId: string,
-  input: { gameSlug: string; gameName: string; amount: number; gameUsername: string }
-): Promise<{ requestId: string } | { error: string }> {
-  const admin = createAdminClient();
-  if (!admin) return { error: "Server configuration error — contact support." };
 
-  const { data: profile, error: profileErr } = await admin
-    .from("profiles")
-    .select("wallet_balance")
-    .eq("id", userId)
-    .single();
-
-  if (profileErr || !profile) {
-    return { error: profileErr?.message ?? "Could not read wallet balance." };
-  }
-
-  const balance = Number(profile.wallet_balance ?? 0);
-  if (balance < input.amount) {
-    return { error: "Insufficient wallet balance" };
-  }
-
-  const newBalance = Math.round((balance - input.amount) * 100) / 100;
-  const { error: updErr } = await admin
-    .from("profiles")
-    .update({ wallet_balance: newBalance })
-    .eq("id", userId);
-
-  if (updErr) return { error: updErr.message };
-
-  const { error: txErr } = await admin.from("wallet_transactions").insert({
-    user_id: userId,
-    amount: input.amount,
-    wallet_type: "current",
-    transaction_type: "debit",
-    source: "game_load",
-    description: `Load $${input.amount.toFixed(2)} to ${input.gameName}`,
-    created_by: userId,
-  });
-  if (txErr) {
-    console.warn("[queueGameLoadAdminFallback] wallet_transactions insert skipped:", txErr.message);
-  }
-
-  const { data: row, error: insErr } = await admin
-    .from("game_load_requests")
-    .insert({
-      user_id: userId,
-      game_slug: input.gameSlug,
-      game_name: input.gameName,
-      amount: input.amount,
-      wallet_type: "current",
-      load_type: "load",
-      game_username: input.gameUsername.trim(),
-      status: "pending",
-    })
-    .select("id")
-    .single();
-
-  if (insErr || !row?.id) {
-    await admin
-      .from("profiles")
-      .update({ wallet_balance: balance })
-      .eq("id", userId);
-    return { error: insErr?.message ?? "Could not queue load for bot." };
-  }
-
-  return { requestId: row.id as string };
-}
 
 /** Queue redeem when RPC missing (no wallet debit — bot pulls from game panel). */
 async function queueGameRedeemAdminFallback(
@@ -302,6 +234,87 @@ export async function requestGameCheckBalance(input: {
   return { success: true, requestId: requestId as string };
 }
 
+async function queueGameLoadAdminFallback(
+  userId: string,
+  input: {
+    gameSlug: string;
+    gameName: string;
+    cashAmount: number;
+    creditAmount: number;
+    gameUsername: string;
+    bonusLabel?: string;
+  }
+): Promise<{ requestId: string } | { error: string }> {
+  const admin = createAdminClient();
+  if (!admin) return { error: "Server configuration error — contact support." };
+
+  const { data: profile, error: profileErr } = await admin
+    .from("profiles")
+    .select("wallet_balance")
+    .eq("id", userId)
+    .single();
+
+  if (profileErr || !profile) {
+    return { error: profileErr?.message ?? "Could not read wallet balance." };
+  }
+
+  const balance = Number(profile.wallet_balance ?? 0);
+  if (balance < input.cashAmount) {
+    return { error: "Insufficient wallet balance" };
+  }
+
+  const newBalance = Math.round((balance - input.cashAmount) * 100) / 100;
+  const { error: updErr } = await admin
+    .from("profiles")
+    .update({ wallet_balance: newBalance })
+    .eq("id", userId);
+
+  if (updErr) return { error: updErr.message };
+
+  const desc = input.bonusLabel
+    ? `Load $${input.cashAmount.toFixed(2)} cash ($${input.creditAmount.toFixed(2)} credits via ${input.bonusLabel}) to ${input.gameName}`
+    : `Load $${input.cashAmount.toFixed(2)} to ${input.gameName}`;
+
+  const { error: txErr } = await admin.from("wallet_transactions").insert({
+    user_id: userId,
+    amount: input.cashAmount,
+    wallet_type: "current",
+    transaction_type: "debit",
+    source: "game_load",
+    description: desc,
+    created_by: userId,
+  });
+  if (txErr) {
+    console.warn("[queueGameLoadAdminFallback] wallet_transactions insert skipped:", txErr.message);
+  }
+
+  const { data: row, error: insErr } = await admin
+    .from("game_load_requests")
+    .insert({
+      user_id: userId,
+      game_slug: input.gameSlug,
+      game_name: input.gameName,
+      amount: input.creditAmount,
+      wallet_type: "current",
+      load_type: "load",
+      game_username: input.gameUsername.trim(),
+      status: "pending",
+      admin_notes: input.bonusLabel ? `${input.bonusLabel}: $${input.cashAmount.toFixed(2)} deposit → $${input.creditAmount.toFixed(2)} credits` : null,
+    })
+    .select("id")
+    .single();
+
+  if (insErr || !row?.id) {
+    await admin
+      .from("profiles")
+      .update({ wallet_balance: balance })
+      .eq("id", userId);
+    return { error: insErr?.message ?? "Could not queue load for bot." };
+  }
+
+  return { requestId: row.id as string };
+}
+
 export async function requestGameLoad(input: {
   gameSlug: string;
   gameName: string;
@@ -319,8 +332,8 @@ export async function requestGameLoad(input: {
     return { error: "Wallet load is not enabled for this game yet." };
   }
 
-  const amount = Math.round(input.amount * 100) / 100;
-  if (amount < WALLET_LOAD_LIMITS.min || amount > WALLET_LOAD_LIMITS.max) {
+  const cashAmount = Math.round(input.amount * 100) / 100;
+  if (cashAmount < WALLET_LOAD_LIMITS.min || cashAmount > WALLET_LOAD_LIMITS.max) {
     return {
       error: `Amount must be between $${WALLET_LOAD_LIMITS.min} and $${WALLET_LOAD_LIMITS.max}`,
     };
@@ -346,95 +359,40 @@ export async function requestGameLoad(input: {
     return { error: "You already have a request in progress for this game." };
   }
 
-  // Queue load for bot worker (status stays pending until bot completes)
-  let requestId: string | null = null;
+  // Calculate Bonus match (100% First Deposit Match, 20% Reload Match)
+  const { data: previousLoads } = await supabase
+    .from("game_load_requests")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("game_slug", input.gameSlug)
+    .in("load_type", ["load", "reload"])
+    .eq("status", "completed")
+    .limit(1);
 
-  const rpcArgs = {
-    p_game_slug: input.gameSlug,
-    p_game_name: input.gameName,
-    p_amount: amount,
-    p_wallet_type: "current" as const,
-    p_load_type: "load" as const,
-    p_game_username: input.gameUsername.trim(),
-  };
+  const isFirstLoad = !previousLoads || previousLoads.length === 0;
+  const bonusPercent = isFirstLoad ? 100 : 20;
+  const creditAmount = Math.round(cashAmount * (1 + bonusPercent / 100) * 100) / 100;
+  const bonusLabel = isFirstLoad ? "🎁 100% First Match Bonus" : "⚡ 20% Reload Bonus";
 
-  try {
-    const { data: rpcId, error } = await supabase.rpc("request_game_load", rpcArgs);
+  // Queue load with bonus credits
+  const fallback = await queueGameLoadAdminFallback(user.id, {
+    gameSlug: input.gameSlug,
+    gameName: input.gameName,
+    cashAmount,
+    creditAmount,
+    gameUsername: input.gameUsername.trim(),
+    bonusLabel,
+  });
 
-    if (!error && rpcId) {
-      requestId = rpcId as string;
-    } else if (error) {
-      const msg = error.message ?? "";
-
-      if (msg.includes("Invalid load type") || isMissingRpcError(msg)) {
-        const legacy = await supabase.rpc("request_game_load", {
-          p_game_slug: input.gameSlug,
-          p_game_name: input.gameName,
-          p_amount: amount,
-          p_load_type: "reload",
-          p_game_username: input.gameUsername.trim(),
-        });
-        if (!legacy.error && legacy.data) {
-          requestId = legacy.data as string;
-        }
-      }
-
-      if (!requestId && isMissingRpcError(msg)) {
-        const fallback = await queueGameLoadAdminFallback(user.id, {
-          gameSlug: input.gameSlug,
-          gameName: input.gameName,
-          amount,
-          gameUsername: input.gameUsername.trim(),
-        });
-        if ("requestId" in fallback) {
-          requestId = fallback.requestId;
-        } else {
-          return { error: fallback.error };
-        }
-      } else if (!requestId) {
-        return { error: msg };
-      }
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not queue load request";
-    if (isMissingRpcError(message)) {
-      const fallback = await queueGameLoadAdminFallback(user.id, {
-        gameSlug: input.gameSlug,
-        gameName: input.gameName,
-        amount,
-        gameUsername: input.gameUsername.trim(),
-      });
-      if ("requestId" in fallback) {
-        requestId = fallback.requestId;
-      } else {
-        return { error: fallback.error };
-      }
-    } else {
-      return { error: message };
-    }
+  if ("error" in fallback) {
+    return { error: fallback.error };
   }
 
-  if (!requestId) {
-    const fallback = await queueGameLoadAdminFallback(user.id, {
-      gameSlug: input.gameSlug,
-      gameName: input.gameName,
-      amount,
-      gameUsername: input.gameUsername.trim(),
-    });
-    if ("requestId" in fallback) {
-      requestId = fallback.requestId;
-    } else {
-      return {
-        error:
-          fallback.error +
-          " — also run supabase/migrations/20260720000200_game_load_rpc_fix.sql in Supabase SQL Editor.",
-      };
-    }
-  }
+  const requestId = fallback.requestId;
 
   revalidatePath(`/games/${input.gameSlug}`);
   revalidatePath("/dashboard");
-    revalidatePath("/dashboard/games");
+  revalidatePath("/dashboard/games");
   revalidatePath("/admin/game-loads");
 
   await notifyAdminOfWalletActivity({
@@ -442,12 +400,19 @@ export async function requestGameLoad(input: {
     gameName: input.gameName,
     gameSlug: input.gameSlug,
     kind: "load",
-    amount,
+    amount: creditAmount,
     walletType: input.walletType,
     requestId,
   });
 
-  return { success: true, requestId };
+  return {
+    success: true,
+    requestId,
+    cashAmount,
+    creditAmount,
+    bonusPercent,
+    bonusLabel,
+  };
 }
 
 export async function requestGameRedeem(input: {
