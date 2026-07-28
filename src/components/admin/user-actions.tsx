@@ -25,7 +25,7 @@ export function UserActions({ userId, role, isSuspended }: UserActionsProps) {
 
   function handleRoleToggle() {
     startTransition(async () => {
-      const targetRole = role === "admin" ? ["customer"] : ["admin"];
+      const targetRole = role === "admin" ? ["user"] : ["admin"];
       const result = await setUserRolesAction({ userId, roleKeys: targetRole });
       if (!result.ok) {
         toast.error(result.error);

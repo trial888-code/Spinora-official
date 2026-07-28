@@ -361,9 +361,16 @@ export async function setUserRolesAction(input: {
   if ("error" in auth) return { ok: false, error: auth.error };
 
   const db = adminDb();
-  const primaryRole = input.roleKeys.includes("admin") || input.roleKeys.includes("super_admin") ? "admin" : "customer";
+  const isAdmin = input.roleKeys.includes("admin") || input.roleKeys.includes("super_admin");
+  const primaryRole = isAdmin ? "admin" : "user";
 
-  const { error: profileRoleErr } = await db.from("profiles").update({ role: primaryRole }).eq("id", input.userId);
+  let { error: profileRoleErr } = await db.from("profiles").update({ role: primaryRole }).eq("id", input.userId);
+
+  if (profileRoleErr && profileRoleErr.message.includes("profiles_role_check")) {
+    const fallbackRole = isAdmin ? "admin" : "customer";
+    const retry = await db.from("profiles").update({ role: fallbackRole }).eq("id", input.userId);
+    profileRoleErr = retry.error;
+  }
 
   try {
     const { data: roles } = await db.from("roles").select("id, key");
