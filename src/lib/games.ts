@@ -15,6 +15,7 @@ export interface Game {
   upcoming?: boolean;
   promotional?: boolean;
   topRated?: boolean;
+  isInHouse?: boolean;
 }
 
 /** Shared bonus & load rules shown on every game landing page */
@@ -38,6 +39,69 @@ export const UPCOMING_GAME_MESSAGE =
   "This game is not available at the moment. Please check back soon!";
 
 export const GAMES: Game[] = [
+  {
+    id: "inhouse-1",
+    name: "Fortune Slots",
+    slug: "slots",
+    image: "/images/promos/spinora_slot_fifteen.jpg",
+    provider: "Spinora Originals",
+    category: "In-House Casino",
+    downloadUrl: "/games/slots",
+    bio: "Spinora Fortune Slots features 5 reels, 25 paylines, wild multipliers, scatter triggers for free spins, and 100% provably fair SHA-256 payouts directly from your deposit wallet balance.",
+    players: 48920,
+    gradient: "from-amber-500 via-amber-600 to-amber-900",
+    popular: true,
+    trending: true,
+    topRated: true,
+    isInHouse: true,
+  },
+  {
+    id: "inhouse-2",
+    name: "Classic Blackjack 21",
+    slug: "blackjack",
+    image: "/images/promos/spinora_dealer_ten.jpg",
+    provider: "Spinora Originals",
+    category: "In-House Casino",
+    downloadUrl: "/games/blackjack",
+    bio: "Test your skill in Spinora Classic Blackjack 21. Dealer stands on soft 17, Blackjack pays 3:2, featuring double down, split hands, and real-time wallet payout updates.",
+    players: 41250,
+    gradient: "from-emerald-500 via-emerald-600 to-emerald-900",
+    popular: true,
+    trending: true,
+    topRated: true,
+    isInHouse: true,
+  },
+  {
+    id: "inhouse-3",
+    name: "European Roulette",
+    slug: "roulette",
+    image: "/images/promos/spinora_model_five.jpg",
+    provider: "Spinora Originals",
+    category: "In-House Casino",
+    downloadUrl: "/games/roulette",
+    bio: "Spin the European Roulette wheel. Place straight-up inside bets (35:1), red/black outside bets, and race track bets backed by transparent provably fair outcome hashes.",
+    players: 37840,
+    gradient: "from-red-500 via-red-600 to-zinc-900",
+    popular: true,
+    topRated: true,
+    isInHouse: true,
+  },
+  {
+    id: "inhouse-4",
+    name: "Spinora Mines",
+    slug: "mines",
+    image: "/images/promos/spinora_gift_three.jpg",
+    provider: "Spinora Originals",
+    category: "In-House Casino",
+    downloadUrl: "/games/mines",
+    bio: "High-stakes 5x5 grid multiplier game. Uncover diamond gems while dodging hidden explosive mines with instant real-time cashout multipliers.",
+    players: 52100,
+    gradient: "from-purple-500 via-purple-600 to-indigo-900",
+    popular: true,
+    trending: true,
+    topRated: true,
+    isInHouse: true,
+  },
   {
     id: "1",
     name: "Fire Kirin",

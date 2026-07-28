@@ -32,6 +32,10 @@ import {
   generateRandomWinnersList,
   type GameWinner,
 } from "@/lib/games/recent-winners";
+import { FortuneSlots } from "@/components/games/fortune-slots";
+import { ClassicBlackjack } from "@/components/games/classic-blackjack";
+import { EuropeanRoulette } from "@/components/games/european-roulette";
+import { SpinoraMines } from "@/components/games/spinora-mines";
 import { GameOtherGames } from "@/components/games/game-other-games";
 import { GameDepositSection } from "@/components/games/game-deposit-section";
 import { GameWalletLoadSection } from "@/components/games/game-wallet-load-section";
@@ -70,6 +74,34 @@ export function GameLandingClient({
   const [showAllWinners, setShowAllWinners] = useState(false);
   const [extraWinners, setExtraWinners] = useState<GameWinner[]>([]);
   const otherGames = getOtherGames(game.slug);
+
+  const [userBalance, setUserBalance] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data?.user;
+      setIsLoggedIn(!!user);
+      if (user && supabase) {
+        supabase
+          .from("profiles")
+          .select("wallet_balance")
+          .eq("id", user.id)
+          .single()
+          .then(({ data }) => {
+            if (data) setUserBalance(Number(data.wallet_balance || 0));
+          });
+      }
+    });
+  }, [supabase]);
+
+  if (game.isInHouse || ["slots", "blackjack", "roulette", "mines"].includes(game.slug)) {
+    if (game.slug === "slots") return <FortuneSlots initialBalance={userBalance} isLoggedIn={isLoggedIn} />;
+    if (game.slug === "blackjack") return <ClassicBlackjack initialBalance={userBalance} isLoggedIn={isLoggedIn} />;
+    if (game.slug === "roulette") return <EuropeanRoulette initialBalance={userBalance} isLoggedIn={isLoggedIn} />;
+    if (game.slug === "mines") return <SpinoraMines initialBalance={userBalance} isLoggedIn={isLoggedIn} />;
+  }
 
   useEffect(() => {
     setWinner(generateRandomWinner());
