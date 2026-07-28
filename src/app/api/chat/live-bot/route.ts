@@ -52,12 +52,9 @@ export async function POST(req: Request) {
     const admin = createAdminClient();
     const botSenderId = await getBotSenderProfileId();
 
-    if (admin && userId && botSenderId) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (admin && userId && botSenderId && uuidRegex.test(userId)) {
       try {
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(userId)) {
-          return NextResponse.json({ success: true, reply, alertedTelegram: needsHuman });
-        }
 
         let { data: conv } = await admin
           .from("conversations")

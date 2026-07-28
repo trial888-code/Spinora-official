@@ -109,15 +109,18 @@ export async function processAIChatQuery(
   if (apiKey && settings.auto_reply_enabled && (userId || !bestMatch || bestMatch.confidence < 0.92)) {
     try {
       let playerContextText = "";
-      if (userId) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUserUuid = Boolean(userId && uuidRegex.test(userId));
+
+      if (isUserUuid) {
         const db = createAdminClient();
         if (db) {
           try {
             const [profRes, vipRes, accsRes, loadsRes] = await Promise.all([
-              db.from("profiles").select("display_name, username, wallet_balance, cashout_wallet, level, coins_balance").eq("id", userId).maybeSingle(),
-              db.from("vip_status").select("vip_tiers(name)").eq("user_id", userId).maybeSingle(),
-              db.from("game_accounts").select("game_username, credits_balance, games(name)").eq("user_id", userId),
-              db.from("game_load_requests").select("game_name, amount, load_type, status, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(3),
+              db.from("profiles").select("display_name, username, wallet_balance, cashout_wallet, level, coins_balance").eq("id", userId!).maybeSingle(),
+              db.from("vip_status").select("vip_tiers(name)").eq("user_id", userId!).maybeSingle(),
+              db.from("game_accounts").select("game_username, credits_balance, games(name)").eq("user_id", userId!),
+              db.from("game_load_requests").select("game_name, amount, load_type, status, created_at").eq("user_id", userId!).order("created_at", { ascending: false }).limit(3),
             ]);
 
             if (profRes.data) {
@@ -227,9 +230,13 @@ export async function processAIChatQuery(
   const db = createAdminClient();
   if (db) {
     try {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const validUserId = userId && uuidRegex.test(userId) ? userId : null;
+      const validConvId = conversationId && uuidRegex.test(conversationId) ? conversationId : null;
+
       await db.from("ai_chat_logs").insert({
-        conversation_id: conversationId || null,
-        user_id: userId || null,
+        conversation_id: validConvId,
+        user_id: validUserId,
         user_query: userQuery.slice(0, 2000),
         bot_response: botResponse.slice(0, 4000),
         confidence_score: confidenceScore,
