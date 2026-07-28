@@ -357,7 +357,7 @@ export async function setUserRolesAction(input: {
   userId: string;
   roleKeys: string[];
 }): Promise<AdminActionResult> {
-  const auth = await authorize("users.roles");
+  const auth = await authorize("users.manage");
   if ("error" in auth) return { ok: false, error: auth.error };
 
   const db = adminDb();

@@ -102,6 +102,22 @@ export async function claimPromotionAction(slug: string, code?: string) {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: "Not signed in." };
 
+  // Enforce 1-Claim-Per-Promotion Check
+  const { data: existingClaims } = await supabase
+    .from("wallet_transactions")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("source", "promotion_claim")
+    .ilike("description", `%${slug}%`)
+    .limit(1);
+
+  if (existingClaims && existingClaims.length > 0) {
+    return {
+      ok: false as const,
+      error: "You have already claimed this bonus promotion!",
+    };
+  }
+
   let { data, error } = await supabase.rpc("claim_promotion", {
     promo_slug: slug,
     redeem_code: code ?? null,
