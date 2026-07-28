@@ -360,6 +360,10 @@ export async function setUserRolesAction(input: {
   const auth = await authorize("users.manage");
   if ("error" in auth) return { ok: false, error: auth.error };
 
+  if (input.userId === auth.staff.userId && !input.roleKeys.includes("admin") && !input.roleKeys.includes("super_admin")) {
+    return { ok: false, error: "You cannot remove Admin role from your own active account to prevent lockouts." };
+  }
+
   const db = adminDb();
   const isAdmin = input.roleKeys.includes("admin") || input.roleKeys.includes("super_admin");
   const primaryRole = isAdmin ? "admin" : "user";
