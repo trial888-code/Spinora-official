@@ -24,6 +24,15 @@ export default async function AdminSettingsPage() {
     (data ?? []).map((s) => [s.key, s.value])
   );
 
+  const cashierInitial = {
+    cashier_cashapp: (settings.cashier_cashapp as string) ?? undefined,
+    cashier_chime: (settings.cashier_chime as string) ?? undefined,
+    cashier_paypal: (settings.cashier_paypal as string) ?? undefined,
+    cashier_venmo: (settings.cashier_venmo as string) ?? undefined,
+    cashier_zelle: (settings.cashier_zelle as string) ?? undefined,
+    cashier_usdt_address: (settings.cashier_usdt_address as string) ?? undefined,
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <AdminPageHeader
@@ -32,7 +41,7 @@ export default async function AdminSettingsPage() {
       />
 
       {/* 1-Click Cashier Payment Handles Card */}
-      <AdminCashierPaymentSettingsCard />
+      <AdminCashierPaymentSettingsCard initialSettings={cashierInitial} />
 
       {/* 1-Click NOWPayments Config Card */}
       <AdminNowpaymentsConfigCard />

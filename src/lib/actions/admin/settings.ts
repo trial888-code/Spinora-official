@@ -37,6 +37,48 @@ export async function updateSettingAction(input: {
   return { ok: true, message: "Setting saved." };
 }
 
+export async function updateCashierPaymentHandlesAction(input: {
+  cashapp?: string;
+  chime?: string;
+  paypal?: string;
+  venmo?: string;
+  zelle?: string;
+  usdt_address?: string;
+}): Promise<AdminActionResult> {
+  const auth = await authorize("settings.manage");
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const db = adminDb();
+  const settingsToUpsert = [
+    { key: "cashier_cashapp", value: input.cashapp || "" },
+    { key: "cashier_chime", value: input.chime || "" },
+    { key: "cashier_paypal", value: input.paypal || "" },
+    { key: "cashier_venmo", value: input.venmo || "" },
+    { key: "cashier_zelle", value: input.zelle || "" },
+    { key: "cashier_usdt_address", value: input.usdt_address || "" },
+  ];
+
+  for (const s of settingsToUpsert) {
+    await db.from("site_settings").upsert(
+      { key: s.key, value: s.value as Json, updated_by: auth.staff.userId },
+      { onConflict: "key" }
+    );
+  }
+
+  await writeAudit({
+    actorId: auth.staff.userId,
+    action: "setting.update_cashier_handles",
+    entityType: "site_settings",
+    entityId: "cashier_handles",
+    after: input,
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/dashboard/deposit");
+  revalidatePath("/dashboard/deposits");
+  return { ok: true, message: "✅ Payment handles saved to database and live across cashier!" };
+}
+
 const telegramPromoMessageSchema = z.object({
   text: z.string().trim().min(3).max(500),
   link: z.string().trim().max(500).optional().default(""),

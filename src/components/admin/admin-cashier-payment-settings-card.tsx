@@ -1,25 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { GlassCard } from "@/components/shared/glass-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { DollarSign, Save, ShieldCheck } from "lucide-react";
+import { DollarSign, Save, ShieldCheck, QrCode } from "lucide-react";
+import { updateCashierPaymentHandlesAction } from "@/lib/actions/admin/settings";
 
-export function AdminCashierPaymentSettingsCard() {
-  const [cashapp, setCashapp] = useState("$AnthonyCastro80");
-  const [chime, setChime] = useState("$Anthony-Castro-208");
-  const [paypal, setPaypal] = useState("@AnthonyCastro909");
-  const [venmo, setVenmo] = useState("@Anthony-Castro-414");
-  const [saving, setSaving] = useState(false);
+interface AdminCashierPaymentSettingsCardProps {
+  initialSettings?: {
+    cashier_cashapp?: string;
+    cashier_chime?: string;
+    cashier_paypal?: string;
+    cashier_venmo?: string;
+    cashier_zelle?: string;
+    cashier_usdt_address?: string;
+  };
+}
+
+export function AdminCashierPaymentSettingsCard({ initialSettings }: AdminCashierPaymentSettingsCardProps) {
+  const [cashapp, setCashapp] = useState(initialSettings?.cashier_cashapp ?? "$AnthonyCastro80");
+  const [chime, setChime] = useState(initialSettings?.cashier_chime ?? "$Anthony-Castro-208");
+  const [paypal, setPaypal] = useState(initialSettings?.cashier_paypal ?? "@AnthonyCastro909");
+  const [venmo, setVenmo] = useState(initialSettings?.cashier_venmo ?? "@Anthony-Castro-414");
+  const [zelle, setZelle] = useState(initialSettings?.cashier_zelle ?? "support@spinoracasinos.com");
+  const [usdtAddress, setUsdtAddress] = useState(initialSettings?.cashier_usdt_address ?? "TRX...YourUSDTAddress");
+  const [pending, startTransition] = useTransition();
 
   function handleSave() {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      toast.success("✅ Payment Handles Saved Successfully! Applied across website.");
-    }, 400);
+    startTransition(async () => {
+      const res = await updateCashierPaymentHandlesAction({
+        cashapp,
+        chime,
+        paypal,
+        venmo,
+        zelle,
+        usdt_address: usdtAddress,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error || "Failed to save payment handles.");
+      } else {
+        toast.success(res.message || "✅ Payment Handles Saved Successfully!");
+      }
+    });
   }
 
   return (
@@ -30,9 +55,9 @@ export function AdminCashierPaymentSettingsCard() {
             <DollarSign className="size-5" />
           </div>
           <div>
-            <h3 className="text-base font-black text-white">Manual Payment Method Handles</h3>
+            <h3 className="text-base font-black text-white">Deposit Cashier Payment Handles</h3>
             <p className="text-xs text-muted-foreground">
-              Set your Cash App, Chime, PayPal, and Venmo handles shown to players for deposits.
+              Set your Cash App, Chime, PayPal, Venmo, Zelle, and USDT wallet addresses shown to players.
             </p>
           </div>
         </div>
@@ -89,15 +114,40 @@ export function AdminCashierPaymentSettingsCard() {
             className="bg-black/60 border-sky-500/30 text-white font-mono text-xs"
           />
         </div>
+
+        <div className="space-y-1.5 bg-black/40 p-3 rounded-xl border border-white/10">
+          <label className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+            <span>🟣 Zelle Email / Phone</span>
+          </label>
+          <Input
+            value={zelle}
+            onChange={(e) => setZelle(e.target.value)}
+            placeholder="zelle@yourdomain.com or phone"
+            className="bg-black/60 border-purple-500/30 text-white font-mono text-xs"
+          />
+        </div>
+
+        <div className="space-y-1.5 bg-black/40 p-3 rounded-xl border border-white/10">
+          <label className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+            <QrCode className="size-3.5" />
+            <span>🪙 Direct USDT (TRC20 / ERC20) Wallet Address</span>
+          </label>
+          <Input
+            value={usdtAddress}
+            onChange={(e) => setUsdtAddress(e.target.value)}
+            placeholder="T...YourUSDTAddress"
+            className="bg-black/60 border-amber-500/30 text-white font-mono text-xs"
+          />
+        </div>
       </div>
 
       <Button
         onClick={handleSave}
-        disabled={saving}
+        disabled={pending}
         className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 text-black font-black text-xs uppercase tracking-wider shadow-lg hover:scale-[1.01] transition-all"
       >
         <Save className="size-4 mr-1.5" />
-        {saving ? "Saving Changes…" : "1-Click Save Cashier Payment Handles"}
+        {pending ? "Saving Changes…" : "1-Click Save Cashier Payment Handles"}
       </Button>
     </GlassCard>
   );
