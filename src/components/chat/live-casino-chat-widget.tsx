@@ -81,13 +81,7 @@ export function LiveCasinoChatWidget() {
     }
   }, []);
 
-  // Auto-open chat popup after 4 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setOpen(true);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, []);
+
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

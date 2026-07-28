@@ -5,7 +5,6 @@ import { homeMetadata } from "@/lib/seo/metadata";
 import { ClientProviders } from "@/components/providers/client-providers";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { LiveCasinoChatWidget } from "@/components/chat/live-casino-chat-widget";
-import { RecentWinnersTicker } from "@/components/shared/recent-winners-ticker";
 import "./globals.css";
 
 const inter = Inter({
@@ -39,7 +38,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ClientProviders>
           {children}
           <div data-global-chrome>
-            <RecentWinnersTicker />
             <LiveCasinoChatWidget />
             <MobileBottomNav />
           </div>
