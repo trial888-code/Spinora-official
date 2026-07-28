@@ -42,6 +42,63 @@ async function saveGameServerConfig(
   return { ok: true };
 }
 
+async function saveGameBonusAndStatus(
+  gameId: string,
+  slug: string,
+  values: Record<string, FieldValue>
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  "use server";
+  const auth = await authorize("cms.manage");
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const db = adminDb();
+
+  const firstBonus = Number(values.first_bonus ?? 100);
+  const reloadBonus = Number(values.reload_bonus ?? 20);
+  const status = String(values.status || "live");
+  const customBadge = values.badge_text ? String(values.badge_text) : "";
+
+  const isActive = status === "live";
+  const isUpcoming = status === "upcoming";
+  const badgeText = isUpcoming
+    ? "UPCOMING"
+    : customBadge || `${firstBonus}% MATCH`;
+
+  await db.from("games").upsert(
+    {
+      id: gameId,
+      slug,
+      name: String(values.name || slug),
+      category_id: "00000000-0000-0000-0000-000000000001",
+      badge_text: badgeText,
+      is_active: isActive,
+    },
+    { onConflict: "slug" }
+  );
+
+  const notesJson = JSON.stringify({
+    first_bonus: firstBonus,
+    reload_bonus: reloadBonus,
+    is_upcoming: isUpcoming,
+    status,
+  });
+
+  const { error } = await db.from("game_server_configs").upsert(
+    {
+      game_id: gameId,
+      notes: notesJson,
+    },
+    { onConflict: "game_id" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/games");
+  revalidatePath("/games");
+  revalidatePath("/");
+  return { ok: true };
+}
+
 export const metadata: Metadata = { title: "Games" };
 
 const INITIALS_BG = [
@@ -198,6 +255,19 @@ export default async function AdminGamesPage() {
           const cfg = configsByGameId.get(game.id);
           const webhookUrl = `${siteUrl}/api/webhooks/game/${game.slug}`;
 
+          let firstBonus = 100;
+          let reloadBonus = 20;
+          let isUpcoming = game.is_upcoming;
+
+          if (cfg?.notes) {
+            try {
+              const parsed = JSON.parse(cfg.notes);
+              if (typeof parsed.first_bonus === "number") firstBonus = parsed.first_bonus;
+              if (typeof parsed.reload_bonus === "number") reloadBonus = parsed.reload_bonus;
+              if (typeof parsed.is_upcoming === "boolean") isUpcoming = parsed.is_upcoming;
+            } catch {}
+          }
+
           return (
             <GlassCard key={game.slug} className="flex flex-col overflow-hidden p-0 border border-white/10 hover:border-amber-400/40 transition-all">
               {/* Thumbnail Cover Image */}
@@ -220,9 +290,13 @@ export default async function AdminGamesPage() {
                     </span>
                   </div>
                 )}
-                {game.badge_text && (
+                {game.badge_text ? (
                   <Badge className="absolute top-2 right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-black font-black text-[10px] uppercase shadow-md">
                     {game.badge_text}
+                  </Badge>
+                ) : (
+                  <Badge className="absolute top-2 right-2 bg-gradient-to-r from-emerald-400 to-teal-500 text-black font-black text-[10px] uppercase shadow-md">
+                    🎁 {firstBonus}% MATCH
                   </Badge>
                 )}
                 <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[10px] font-bold text-cyan-300 border border-cyan-400/30">
@@ -240,7 +314,7 @@ export default async function AdminGamesPage() {
                         <Badge className="bg-red-500/20 text-red-300 text-[10px] border border-red-500/30">
                           Inactive
                         </Badge>
-                      ) : game.is_upcoming ? (
+                      ) : isUpcoming ? (
                         <Badge className="bg-purple-500/20 text-purple-300 text-[10px] border border-purple-500/30">
                           Upcoming
                         </Badge>
@@ -261,6 +335,65 @@ export default async function AdminGamesPage() {
                       {game.description}
                     </p>
                   )}
+                </div>
+
+                {/* Daily Bonus & Status Manager Box */}
+                <div className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-500/5 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1">
+                      🎁 Daily Bonus &amp; Status
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-400">
+                      {isUpcoming ? "🟣 Coming Soon" : "🟢 Live & Playing"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg bg-black/40 p-2 border border-white/5">
+                      <span className="block text-[9px] uppercase text-zinc-400 font-bold">1st Deposit</span>
+                      <span className="font-mono font-bold text-amber-300 text-sm">+{firstBonus}% Match</span>
+                    </div>
+                    <div className="rounded-lg bg-black/40 p-2 border border-white/5">
+                      <span className="block text-[9px] uppercase text-zinc-400 font-bold">Reload Match</span>
+                      <span className="font-mono font-bold text-cyan-300 text-sm">+{reloadBonus}% Match</span>
+                    </div>
+                  </div>
+
+                  <EntityEditDialog
+                    title={`🎁 Change Bonus & Status — ${game.name}`}
+                    triggerLabel="⚙️ Change Bonus & Status"
+                    fields={[
+                      {
+                        name: "first_bonus",
+                        label: "1st Deposit Bonus Match % (e.g. 100 for 100%, 200 for 200%)",
+                        type: "number",
+                        defaultValue: firstBonus,
+                      },
+                      {
+                        name: "reload_bonus",
+                        label: "Reload Bonus Match % (e.g. 20 for 20%, 50 for 50%)",
+                        type: "number",
+                        defaultValue: reloadBonus,
+                      },
+                      {
+                        name: "badge_text",
+                        label: "Badge Text on Card (e.g. 100% MATCH, 200% PROMO, HOT)",
+                        type: "text",
+                        defaultValue: game.badge_text || `${firstBonus}% MATCH`,
+                      },
+                      {
+                        name: "status",
+                        label: "Game Status (type: live, upcoming, or inactive)",
+                        type: "text",
+                        defaultValue: isUpcoming ? "upcoming" : game.is_active ? "live" : "inactive",
+                        hint: "live = active & playable | upcoming = coming soon (no loads) | inactive = hidden",
+                      },
+                    ]}
+                    action={async (v: Record<string, FieldValue>) => {
+                      "use server";
+                      return saveGameBonusAndStatus(game.id, game.slug, v);
+                    }}
+                  />
                 </div>
 
                 {/* URL status */}

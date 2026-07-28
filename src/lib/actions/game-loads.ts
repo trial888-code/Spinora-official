@@ -359,7 +359,7 @@ export async function requestGameLoad(input: {
     return { error: "You already have a request in progress for this game." };
   }
 
-  // Calculate Bonus match (100% First Deposit Match, 20% Reload Match)
+  // Calculate Bonus match from Admin settings
   const { data: previousLoads } = await supabase
     .from("game_load_requests")
     .select("id")
@@ -369,10 +369,39 @@ export async function requestGameLoad(input: {
     .eq("status", "completed")
     .limit(1);
 
+  let firstBonusRate = 100;
+  let reloadBonusRate = 20;
+
+  // Read admin custom bonus overrides if saved
+  const { data: dbGame } = await supabase
+    .from("games")
+    .select("id")
+    .eq("slug", input.gameSlug)
+    .maybeSingle();
+
+  if (dbGame?.id) {
+    const { data: gameConfig } = await supabase
+      .from("game_server_configs")
+      .select("notes")
+      .eq("game_id", dbGame.id)
+      .maybeSingle();
+
+    if (gameConfig?.notes) {
+      try {
+        const parsed = JSON.parse(gameConfig.notes);
+        if (typeof parsed.first_bonus === "number") firstBonusRate = parsed.first_bonus;
+        if (typeof parsed.reload_bonus === "number") reloadBonusRate = parsed.reload_bonus;
+        if (parsed.is_upcoming) {
+          return { error: "This game is currently listed as Coming Soon. Check back shortly!" };
+        }
+      } catch {}
+    }
+  }
+
   const isFirstLoad = !previousLoads || previousLoads.length === 0;
-  const bonusPercent = isFirstLoad ? 100 : 20;
+  const bonusPercent = isFirstLoad ? firstBonusRate : reloadBonusRate;
   const creditAmount = Math.round(cashAmount * (1 + bonusPercent / 100) * 100) / 100;
-  const bonusLabel = isFirstLoad ? "🎁 100% First Match Bonus" : "⚡ 20% Reload Bonus";
+  const bonusLabel = isFirstLoad ? `🎁 ${bonusPercent}% First Match Bonus` : `⚡ ${bonusPercent}% Reload Bonus`;
 
   // Queue load with bonus credits
   const fallback = await queueGameLoadAdminFallback(user.id, {
